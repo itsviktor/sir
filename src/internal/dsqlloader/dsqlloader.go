@@ -23,6 +23,7 @@ type Query struct {
 	SQL       string    // SQL is the raw query text with the header line removed.
 	Name      string    // Name is the PascalCase query name parsed from the header comment.
 	Kind      QueryKind // Kind is the return kind parsed from the header comment (one, many, count, exec).
+	File      string    // File is the path to the file of the query.
 	StartLine int       // StartLine is the line number where the query starts.
 }
 
@@ -115,6 +116,7 @@ func parseQueries(filepath string, content string) []Query {
 			SQL:       strings.TrimSpace(queryBuilder.String()),
 			Name:      queryName,
 			Kind:      queryKind,
+			File:      filepath,
 			StartLine: queryStartAt.line,
 		})
 

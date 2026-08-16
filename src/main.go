@@ -2,11 +2,9 @@ package main
 
 import (
 	"fmt"
-	"log"
-	"strings"
 
 	"github.com/antlr4-go/antlr/v4"
-	"github.com/itsviktor/sir/src/internal/dsqlloader"
+	"github.com/itsviktor/sir/src/internal/parser"
 )
 
 type errorListener struct {
@@ -89,62 +87,56 @@ func main() {
 	// 	fmt.Printf("\n")
 	// }
 
-	// input := antlr.NewInputStream("select * from users where $data.name = users.name")
-	// lexer := parser.NewPostgreSQLLexer(input)
+	input := antlr.NewInputStream("select * from users where $data.name = users.name and surname = $data.surname or id = $id")
+	lexer := parser.NewPostgreSQLLexer(input)
 
-	// lexer.RemoveErrorListeners()
-	// lexer.AddErrorListener(&errorListener{})
+	lexer.RemoveErrorListeners()
+	lexer.AddErrorListener(&errorListener{})
 
-	// tokens := antlr.NewCommonTokenStream(lexer, antlr.TokenDefaultChannel)
+	tokens := antlr.NewCommonTokenStream(lexer, antlr.TokenDefaultChannel)
 
-	// p := parser.NewPostgreSQLParser(tokens)
+	p := parser.NewPostgreSQLParser(tokens)
 
-	// p.RemoveErrorListeners()
-	// p.AddErrorListener(&errorListener{})
+	p.RemoveErrorListeners()
+	p.AddErrorListener(&errorListener{})
 
-	// tree := p.Root()
+	tree := p.Root()
 
-	// walk(tree, func(ctx antlr.ParserRuleContext) {
-	// 	cmp, ok := ctx.(*parser.A_expr_compareContext)
-	// 	if !ok {
-	// 		return
-	// 	}
-	// 	if cmp.GetChildCount() != 3 {
-	// 		return
-	// 	}
-
-	// 	leftChild := cmp.GetChild(0)
-	// 	rightChild := cmp.GetChild(2)
-
-	// 	left := drillDown(leftChild.(antlr.ParserRuleContext))
-	// 	right := drillDown(rightChild.(antlr.ParserRuleContext))
-
-	// 	fmt.Printf("compare: [%s] [%s] [%s]\n",
-	// 		leftChild.(antlr.ParseTree).GetText(),
-	// 		cmp.GetChild(1).(antlr.ParseTree).GetText(),
-	// 		rightChild.(antlr.ParseTree).GetText(),
-	// 	)
-	// 	fmt.Printf("left type: %T, right type: %T\n", left, right)
-
-	// 	right = right.(*parser.ColumnrefContext)
-	// })
-
-	domains, err := dsqlloader.Load("queries")
-	if err != nil {
-		log.Fatalf("parsing query files: %v", err)
-	}
-
-	for _, domain := range domains {
-		fmt.Printf("domain: %+v\n", domain.Name)
-		fmt.Printf("\n")
-
-		for _, query := range domain.Queries {
-			fmt.Printf("query: %s, kind: %s\n%s\n", query.Name, query.Kind, query.SQL)
-			fmt.Printf("%s\n", strings.Repeat("-", 30))
+	walk(tree, func(ctx antlr.ParserRuleContext) {
+		cmp, ok := ctx.(*parser.A_expr_compareContext)
+		if !ok {
+			return
+		}
+		if cmp.GetChildCount() != 3 {
+			return
 		}
 
-		fmt.Printf("\n\n")
-	}
+		leftChild := cmp.GetChild(0)
+		rightChild := cmp.GetChild(2)
+
+		fmt.Printf("compare: [%s] [%s] [%s]\n",
+			leftChild.(antlr.ParseTree).GetText(),
+			cmp.GetChild(1).(antlr.ParseTree).GetText(),
+			rightChild.(antlr.ParseTree).GetText(),
+		)
+	})
+
+	// domains, err := dsqlloader.Load("queries")
+	// if err != nil {
+	// 	log.Fatalf("parsing query files: %v", err)
+	// }
+
+	// for _, domain := range domains {
+	// 	fmt.Printf("domain: %+v\n", domain.Name)
+	// 	fmt.Printf("\n")
+
+	// 	for _, query := range domain.Queries {
+	// 		fmt.Printf("query: %s, kind: %s\n%s\n", query.Name, query.Kind, query.SQL)
+	// 		fmt.Printf("%s\n", strings.Repeat("-", 30))
+	// 	}
+
+	// 	fmt.Printf("\n\n")
+	// }
 }
 
 func derefStr(ptr *string, fallback string) string {
