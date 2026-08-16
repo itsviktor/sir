@@ -2,9 +2,11 @@ package main
 
 import (
 	"fmt"
+	"log"
+	"strings"
 
 	"github.com/antlr4-go/antlr/v4"
-	"github.com/itsviktor/sir/src/internal/parser"
+	"github.com/itsviktor/sir/src/internal/dsqlloader"
 )
 
 type errorListener struct {
@@ -20,6 +22,26 @@ func (l *errorListener) SyntaxError(
 	e antlr.RecognitionException,
 ) {
 	fmt.Printf("error at %d:%d: %s\n", line, column, msg)
+}
+
+func drillDown(ctx antlr.ParserRuleContext) antlr.ParserRuleContext {
+	for ctx.GetChildCount() == 1 {
+		if child, ok := ctx.GetChild(0).(antlr.ParserRuleContext); ok {
+			ctx = child
+			continue
+		}
+		break
+	}
+	return ctx
+}
+
+func walk(node antlr.Tree, visit func(antlr.ParserRuleContext)) {
+	if ctx, ok := node.(antlr.ParserRuleContext); ok {
+		visit(ctx)
+	}
+	for i := 0; i < node.GetChildCount(); i++ {
+		walk(node.GetChild(i), visit)
+	}
 }
 
 func main() {
@@ -67,21 +89,62 @@ func main() {
 	// 	fmt.Printf("\n")
 	// }
 
-	input := antlr.NewInputStream("select * from users where name = $data.name or surname = $data.surname or id = $id")
-	lexer := parser.NewPostgreSQLLexer(input)
+	// input := antlr.NewInputStream("select * from users where $data.name = users.name")
+	// lexer := parser.NewPostgreSQLLexer(input)
 
-	lexer.RemoveErrorListeners()
-	lexer.AddErrorListener(&errorListener{})
+	// lexer.RemoveErrorListeners()
+	// lexer.AddErrorListener(&errorListener{})
 
-	tokens := antlr.NewCommonTokenStream(lexer, antlr.TokenDefaultChannel)
+	// tokens := antlr.NewCommonTokenStream(lexer, antlr.TokenDefaultChannel)
 
-	parser := parser.NewPostgreSQLParser(tokens)
+	// p := parser.NewPostgreSQLParser(tokens)
 
-	parser.RemoveErrorListeners()
-	parser.AddErrorListener(&errorListener{})
+	// p.RemoveErrorListeners()
+	// p.AddErrorListener(&errorListener{})
 
-	// Запускаем entry rule PostgreSQL grammar.
-	parser.Root()
+	// tree := p.Root()
+
+	// walk(tree, func(ctx antlr.ParserRuleContext) {
+	// 	cmp, ok := ctx.(*parser.A_expr_compareContext)
+	// 	if !ok {
+	// 		return
+	// 	}
+	// 	if cmp.GetChildCount() != 3 {
+	// 		return
+	// 	}
+
+	// 	leftChild := cmp.GetChild(0)
+	// 	rightChild := cmp.GetChild(2)
+
+	// 	left := drillDown(leftChild.(antlr.ParserRuleContext))
+	// 	right := drillDown(rightChild.(antlr.ParserRuleContext))
+
+	// 	fmt.Printf("compare: [%s] [%s] [%s]\n",
+	// 		leftChild.(antlr.ParseTree).GetText(),
+	// 		cmp.GetChild(1).(antlr.ParseTree).GetText(),
+	// 		rightChild.(antlr.ParseTree).GetText(),
+	// 	)
+	// 	fmt.Printf("left type: %T, right type: %T\n", left, right)
+
+	// 	right = right.(*parser.ColumnrefContext)
+	// })
+
+	domains, err := dsqlloader.Load("queries")
+	if err != nil {
+		log.Fatalf("parsing query files: %v", err)
+	}
+
+	for _, domain := range domains {
+		fmt.Printf("domain: %+v\n", domain.Name)
+		fmt.Printf("\n")
+
+		for _, query := range domain.Queries {
+			fmt.Printf("query: %s, kind: %s\n%s\n", query.Name, query.Kind, query.SQL)
+			fmt.Printf("%s\n", strings.Repeat("-", 30))
+		}
+
+		fmt.Printf("\n\n")
+	}
 }
 
 func derefStr(ptr *string, fallback string) string {

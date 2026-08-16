@@ -1,0 +1,77 @@
+select *
+from users
+where id = $id;
+
+-- Ordinary comment before everything.
+-- This should be ignored by the DSQL parser.
+--> GetById one
+select *
+from users
+where id = $id;
+
+-- Ordinary comment between queries.
+-- Another ordinary comment.
+
+--> GetList many
+select *
+from users
+where name ilike $data.name
+   -- User comment in the middle of an expression.
+   or surname ilike $data.surname
+order by
+    $orderBy $data.order
+limit $limit;
+
+--> OrphanedAnnotation many
+
+--> Count count
+select count(*)
+from users
+where (
+    name ilike $data.name
+    -- Comment between expression tokens.
+    or surname ilike $data.surname
+);
+
+-- Query without a DSQL annotation.
+select *
+from users
+where active = true;
+
+--> AnotherWithoutQuery one
+
+-- Ordinary comment after an orphaned annotation.
+
+select *
+from users
+where id = $id;
+
+--> Create exec
+-- Comment immediately after the annotation.
+insert into users (
+    name,
+    surname
+)
+values (
+    $data.name,
+    $data.surname
+);
+
+-- Comment inside a statement.
+-- The parser should preserve this as part of the SQL.
+--> Update exec
+update users
+set
+    name = $data.name, -- Inline user comment
+    surname = $data.surname
+where id = $id;
+
+--> EmptyQuery exec
+
+-- No SQL follows this annotation.
+
+--> GetAnother many
+select *
+from users;
+
+-- Trailing ordinary comment.
