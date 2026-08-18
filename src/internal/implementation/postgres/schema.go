@@ -4,21 +4,20 @@ import "github.com/itsviktor/sir/src/internal/schema"
 
 type pgTable struct {
 	NameC   string
-	columns []pgColumn
+	columns map[string]*pgColumn
 }
 
 func (t pgTable) Name() string {
 	return t.NameC
 }
 
-func (t pgTable) Columns() []schema.Column {
-	columns := make([]schema.Column, len(t.columns))
+func (t pgTable) HasColumn(name string) bool {
+	_, ok := t.columns[name]
+	return ok
+}
 
-	for i, column := range t.columns {
-		columns[i] = column
-	}
-
-	return columns
+func (t pgTable) GetColumn(name string) schema.Column {
+	return t.columns[name]
 }
 
 type pgColumn struct {

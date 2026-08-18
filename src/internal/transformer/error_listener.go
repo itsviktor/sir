@@ -1,7 +1,7 @@
 package transformer
 
 import (
-	"fmt"
+	"log"
 
 	"github.com/antlr4-go/antlr/v4"
 )
@@ -18,5 +18,5 @@ func (l *ErrorListener) SyntaxError(
 	msg string,
 	e antlr.RecognitionException,
 ) {
-	fmt.Printf("error at %d:%d: %s\n", line, column, msg)
+	log.Fatalf("error at %d:%d: %s\n", line, column, msg)
 }

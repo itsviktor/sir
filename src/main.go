@@ -8,9 +8,12 @@ import (
 	"github.com/itsviktor/sir/src/internal/dbtype"
 	"github.com/itsviktor/sir/src/internal/dsql"
 	"github.com/itsviktor/sir/src/internal/implementation/postgres"
+	"github.com/itsviktor/sir/src/internal/utils"
 )
 
 func main() {
+	utils.SetDebug(true)
+
 	// dsn := os.Getenv("SIR_DSN")
 	dsn := "postgres://postgres:postgres@localhost:5432/sir"
 
@@ -61,7 +64,7 @@ func doPostgres(db *sql.DB) {
 	// Transforming queries into internal representation.
 	for _, domain := range domains {
 		for _, query := range domain.Queries {
-			postgres.Transform(query, domain.Name)
+			postgres.Transform(query, tables, domain.Name)
 		}
 	}
 }

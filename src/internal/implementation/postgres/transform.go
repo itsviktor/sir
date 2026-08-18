@@ -8,7 +8,9 @@ import (
 	"github.com/antlr4-go/antlr/v4"
 	"github.com/itsviktor/sir/src/internal/dsql"
 	"github.com/itsviktor/sir/src/internal/parser"
+	"github.com/itsviktor/sir/src/internal/schema"
 	"github.com/itsviktor/sir/src/internal/transformer"
+	"github.com/itsviktor/sir/src/internal/utils"
 )
 
 type tableRelation struct {
@@ -39,13 +41,13 @@ func (s *scope) addChild(children *scope) {
 }
 
 func (s *scope) printRoot(offset int) {
-	fmt.Printf("%sscope relations: \n", strings.Repeat(" ", offset))
+	utils.Debugf("%sscope relations: \n", strings.Repeat(" ", offset))
 	for _, rel := range s.relations {
-		fmt.Printf("%s- %s\n", strings.Repeat(" ", offset), rel)
+		utils.Debugf("%s- %s\n", strings.Repeat(" ", offset), rel)
 	}
-	fmt.Printf("%sscope aliases: \n", strings.Repeat(" ", offset))
+	utils.Debugf("%sscope aliases: \n", strings.Repeat(" ", offset))
 	for alias, rel := range s.aliases {
-		fmt.Printf("%s- %s -> %s\n", strings.Repeat(" ", offset), alias, rel)
+		utils.Debugf("%s- %s -> %s\n", strings.Repeat(" ", offset), alias, rel)
 	}
 
 	for _, child := range s.children {
@@ -53,8 +55,8 @@ func (s *scope) printRoot(offset int) {
 	}
 }
 
-func Transform(query dsql.Query, domainName string) {
-	fmt.Printf("transforming %s query:\n%s\n\n", domainName, query.SQL)
+func Transform(query dsql.Query, tables map[string]schema.Table, domainName string) {
+	utils.Debugf("transforming %s query:\n%s\n\n", domainName, query.SQL)
 
 	input := antlr.NewInputStream(query.SQL)
 	lexer := parser.NewPostgreSQLLexer(input)
@@ -72,13 +74,13 @@ func Transform(query dsql.Query, domainName string) {
 	tree := p.Root()
 
 	// First traversal to build scopes.
-	fmt.Println("DEBUG create scopes")
+	utils.Debug("DEBUG create scopes\n")
 	var queryScope *scope
 	scopeByContext := map[*parser.Select_clauseContext]*scope{}
 	transformer.WalkAntlrTree(tree, func(ctx antlr.Tree) {
 		selectContext, ok := ctx.(*parser.Select_clauseContext)
 		if ok {
-			fmt.Printf("create new scope\n")
+			utils.Debugf("create new scope\n")
 
 			nScope := newScope()
 			if queryScope != nil {
@@ -94,15 +96,15 @@ func Transform(query dsql.Query, domainName string) {
 		tableRefCtx, ok := ctx.(*parser.Table_refContext)
 		if ok {
 			if queryScope == nil {
-				log.Fatalf("table ref inside nil scope")
+				traceerr("table ref inside nil scope")
 			}
 
 			rel, err := parseTableRelation(tableRefCtx)
 			if err != nil {
-				log.Fatalf("transforming query: %v\n%s", err, query.SQL)
+				traceerr(fmt.Sprintf("transforming query: %v", err))
 			}
 
-			fmt.Printf("relation: %+v\n", rel)
+			utils.Debugf("relation: %+v\n", rel)
 
 			if rel.alias == "" {
 				queryScope.relations = append(queryScope.relations, rel.name)
@@ -117,35 +119,41 @@ func Transform(query dsql.Query, domainName string) {
 		if ok {
 			parentScope := queryScope.parent
 			if parentScope != nil {
-				fmt.Printf("exit from scope\n")
+				utils.Debugf("exit from scope\n")
 				queryScope = parentScope
 			}
 		}
 	})
 
-	fmt.Println("\nDEBUG scopes")
+	utils.Debugf("\nDEBUG scopes\n")
 	queryScope.printRoot(0)
 
 	// Second traversal to analyze dsql tokens.
-	fmt.Println("\nDEBUG where analyze")
+	utils.Debugf("\nDEBUG where analyze\n")
 	var currentScope *scope
 	transformer.WalkAntlrTree(tree, func(ctx antlr.Tree) {
 		selectContext, ok := ctx.(*parser.Select_clauseContext)
 		if ok {
-			fmt.Printf("enter scope\n")
+			utils.Debugf("enter scope\n")
 
 			scope, ok := scopeByContext[selectContext]
 			if !ok {
-				traceerr(fmt.Sprintf("scope not found for selected context"))
+				traceerr("scope not found for selected context")
 			}
 			currentScope = scope
 
 			return
 		}
+
+		whereCtx, ok := ctx.(*parser.Where_clauseContext)
+		if ok {
+			utils.Debugf("where ctx: %s\n", whereCtx.GetText())
+			analyzeWhere(whereCtx, currentScope)
+		}
 	}, func(ctx antlr.Tree) {
 		_, ok := ctx.(*parser.Select_clauseContext)
 		if ok {
-			fmt.Printf("exit scope\n")
+			utils.Debugf("exit scope\n")
 			currentScope = currentScope.parent
 		}
 	})
@@ -153,7 +161,7 @@ func Transform(query dsql.Query, domainName string) {
 
 // TODO: implement error tracing
 func traceerr(msg string) {
-	log.Fatalf(msg)
+	log.Fatalf("%s", msg)
 }
 
 func parseTableRelation(ctx *parser.Table_refContext) (tableRelation, error) {
@@ -230,4 +238,8 @@ func parseTableRelation(ctx *parser.Table_refContext) (tableRelation, error) {
 	}
 
 	return rel, nil
+}
+
+func analyzeWhere(whereCtx *parser.Where_clauseContext, scope *scope) {
+
 }

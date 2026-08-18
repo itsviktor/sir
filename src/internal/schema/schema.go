@@ -2,7 +2,8 @@ package schema
 
 type Table interface {
 	Name() string
-	Columns() []Column
+	HasColumn(name string) bool
+	GetColumn(name string) Column
 }
 
 type Column interface {

@@ -9,8 +9,8 @@ import (
 )
 
 // Inspect returns tables and columns using the provided connection.
-func Inspect(db *sql.DB) ([]schema.Table, error) {
-	var tables []schema.Table
+func Inspect(db *sql.DB) (map[string]schema.Table, error) {
+	tables := make(map[string]schema.Table)
 
 	err := parseEnumTypes(db)
 	if err != nil {
@@ -43,7 +43,7 @@ func Inspect(db *sql.DB) ([]schema.Table, error) {
 
 		table.columns = columns
 
-		tables = append(tables, table)
+		tables[table.NameC] = table
 	}
 	if err = rows.Err(); err != nil {
 		return tables, err
@@ -95,8 +95,8 @@ func parseEnumTypes(db *sql.DB) error {
 }
 
 // parseColumns parses all columns of the provided table.
-func parseColumns(db *sql.DB, tableName string) ([]pgColumn, error) {
-	var columns []pgColumn
+func parseColumns(db *sql.DB, tableName string) (map[string]*pgColumn, error) {
+	columns := make(map[string]*pgColumn)
 
 	const query = `
 		SELECT
@@ -127,7 +127,7 @@ func parseColumns(db *sql.DB, tableName string) ([]pgColumn, error) {
 	}
 
 	for rows.Next() {
-		var column pgColumn
+		column := &pgColumn{}
 		if err := rows.Scan(&column.NameC, &column.DefaultValueC, &column.DbTypeC, &column.IsPrimaryKeyC, &column.IsNullableC); err != nil {
 			return columns, fmt.Errorf("scanning column: %w", err)
 		}
@@ -138,7 +138,7 @@ func parseColumns(db *sql.DB, tableName string) ([]pgColumn, error) {
 		}
 		column.t = t
 
-		columns = append(columns, column)
+		columns[column.NameC] = column
 	}
 	if err := rows.Err(); err != nil {
 		return columns, err
