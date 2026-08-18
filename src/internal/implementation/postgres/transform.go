@@ -3,6 +3,7 @@ package postgres
 import (
 	"fmt"
 	"log"
+	"strings"
 
 	"github.com/antlr4-go/antlr/v4"
 	"github.com/itsviktor/sir/src/internal/dsql"
@@ -14,6 +15,42 @@ type tableRelation struct {
 	schema string
 	name   string
 	alias  string
+}
+
+type scope struct {
+	parent    *scope
+	children  []*scope
+	relations []string
+	aliases   map[string]string
+}
+
+func newScope() *scope {
+	return &scope{
+		parent:    nil,
+		children:  make([]*scope, 0),
+		relations: make([]string, 0),
+		aliases:   make(map[string]string),
+	}
+}
+
+func (s *scope) addChild(children *scope) {
+	s.children = append(s.children, children)
+	children.parent = s
+}
+
+func (s *scope) printRoot(offset int) {
+	fmt.Printf("%sscope relations: \n", strings.Repeat(" ", offset))
+	for _, rel := range s.relations {
+		fmt.Printf("%s- %s\n", strings.Repeat(" ", offset), rel)
+	}
+	fmt.Printf("%sscope aliases: \n", strings.Repeat(" ", offset))
+	for alias, rel := range s.aliases {
+		fmt.Printf("%s- %s -> %s\n", strings.Repeat(" ", offset), alias, rel)
+	}
+
+	for _, child := range s.children {
+		child.printRoot(offset + 4)
+	}
 }
 
 func Transform(query dsql.Query, domainName string) {
@@ -34,29 +71,89 @@ func Transform(query dsql.Query, domainName string) {
 
 	tree := p.Root()
 
-	relations := make([]tableRelation, 0)
+	// First traversal to build scopes.
+	fmt.Println("DEBUG create scopes")
+	var queryScope *scope
+	scopeByContext := map[*parser.Select_clauseContext]*scope{}
+	transformer.WalkAntlrTree(tree, func(ctx antlr.Tree) {
+		selectContext, ok := ctx.(*parser.Select_clauseContext)
+		if ok {
+			fmt.Printf("create new scope\n")
 
-	transformer.WalkAntlrTree(tree, func(ctx antlr.ParserRuleContext) {
-		// Getting relation info.
+			nScope := newScope()
+			if queryScope != nil {
+				queryScope.addChild(nScope)
+			}
+			queryScope = nScope
+
+			scopeByContext[selectContext] = nScope
+
+			return
+		}
+
 		tableRefCtx, ok := ctx.(*parser.Table_refContext)
 		if ok {
+			if queryScope == nil {
+				log.Fatalf("table ref inside nil scope")
+			}
+
 			rel, err := parseTableRelation(tableRefCtx)
 			if err != nil {
 				log.Fatalf("transforming query: %v\n%s", err, query.SQL)
 			}
 
 			fmt.Printf("relation: %+v\n", rel)
-			relations = append(relations, rel)
+
+			if rel.alias == "" {
+				queryScope.relations = append(queryScope.relations, rel.name)
+			} else {
+				queryScope.aliases[rel.alias] = rel.name
+			}
 
 			return
 		}
-
-		cmp, ok := ctx.(*parser.Where_clauseContext)
+	}, func(ctx antlr.Tree) {
+		_, ok := ctx.(*parser.Select_clauseContext)
 		if ok {
-			fmt.Printf("Where clause: %s\n", cmp.GetText())
+			parentScope := queryScope.parent
+			if parentScope != nil {
+				fmt.Printf("exit from scope\n")
+				queryScope = parentScope
+			}
 		}
-
 	})
+
+	fmt.Println("\nDEBUG scopes")
+	queryScope.printRoot(0)
+
+	// Second traversal to analyze dsql tokens.
+	fmt.Println("\nDEBUG where analyze")
+	var currentScope *scope
+	transformer.WalkAntlrTree(tree, func(ctx antlr.Tree) {
+		selectContext, ok := ctx.(*parser.Select_clauseContext)
+		if ok {
+			fmt.Printf("enter scope\n")
+
+			scope, ok := scopeByContext[selectContext]
+			if !ok {
+				traceerr(fmt.Sprintf("scope not found for selected context"))
+			}
+			currentScope = scope
+
+			return
+		}
+	}, func(ctx antlr.Tree) {
+		_, ok := ctx.(*parser.Select_clauseContext)
+		if ok {
+			fmt.Printf("exit scope\n")
+			currentScope = currentScope.parent
+		}
+	})
+}
+
+// TODO: implement error tracing
+func traceerr(msg string) {
+	log.Fatalf(msg)
 }
 
 func parseTableRelation(ctx *parser.Table_refContext) (tableRelation, error) {
