@@ -1,4 +1,4 @@
-package dsqlloader
+package dsql
 
 import (
 	"fmt"
@@ -32,11 +32,11 @@ type Domain struct {
 	Queries []Query // Queries holds every query found in the file.
 }
 
-// Load walks queriesDir, parses every .dsql file found, and returns
+// LoadDir walks queriesDir, parses every .dsql file found, and returns
 // one Domain per file with its queries extracted and validated.
 // Files or query blocks that don't match the expected format are
 // skipped with warning.
-func Load(queriesDir string) ([]Domain, error) {
+func LoadDir(queriesDir string) ([]Domain, error) {
 	var domains []Domain
 
 	entries, err := os.ReadDir(queriesDir)
