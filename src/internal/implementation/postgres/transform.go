@@ -10,7 +10,7 @@ import (
 	"github.com/itsviktor/sir/src/internal/transformer"
 )
 
-type relation struct {
+type tableRelation struct {
 	schema string
 	name   string
 	alias  string
@@ -34,19 +34,19 @@ func Transform(query dsql.Query, domainName string) {
 
 	tree := p.Root()
 
-	var rel relation
-	var err error
+	relations := make([]tableRelation, 0)
 
 	transformer.WalkAntlrTree(tree, func(ctx antlr.ParserRuleContext) {
 		// Getting relation info.
 		tableRefCtx, ok := ctx.(*parser.Table_refContext)
 		if ok {
-			rel, err = parseRelation(tableRefCtx)
+			rel, err := parseTableRelation(tableRefCtx)
 			if err != nil {
 				log.Fatalf("transforming query: %v\n%s", err, query.SQL)
 			}
 
 			fmt.Printf("relation: %+v\n", rel)
+			relations = append(relations, rel)
 
 			return
 		}
@@ -59,12 +59,17 @@ func Transform(query dsql.Query, domainName string) {
 	})
 }
 
-func parseRelation(ctx *parser.Table_refContext) (relation, error) {
-	var rel relation
+func parseTableRelation(ctx *parser.Table_refContext) (tableRelation, error) {
+	var rel tableRelation
 
 	aliasCtx := ctx.Alias_clause()
 	if aliasCtx != nil {
-		rel.alias = aliasCtx.GetText()
+		colidCtx := aliasCtx.Colid()
+		if colidCtx == nil {
+			return rel, fmt.Errorf("failed to find colid context in the alias context")
+		}
+
+		rel.alias = colidCtx.GetText()
 	}
 
 	relCtx := ctx.Relation_expr()

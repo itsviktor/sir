@@ -1,4 +1,4 @@
 --> GetById one
-select *
-from users
-where id = $id;
+SELECT *
+FROM users as u
+WHERE u.active = true;
