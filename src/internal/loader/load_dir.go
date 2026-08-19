@@ -1,4 +1,4 @@
-package dsql
+package loader
 
 import (
 	"fmt"
@@ -8,36 +8,15 @@ import (
 	"strings"
 
 	"github.com/iancoleman/strcase"
+	"github.com/itsviktor/sir/src/internal/dsql"
 )
-
-type QueryKind string
-
-const (
-	KindOne   QueryKind = "one"
-	KindMany  QueryKind = "many"
-	KindCount QueryKind = "count"
-	KindExec  QueryKind = "exec"
-)
-
-type Query struct {
-	SQL       string    // SQL is the raw query text with the header line removed.
-	Name      string    // Name is the PascalCase query name parsed from the header comment.
-	Kind      QueryKind // Kind is the return kind parsed from the header comment (one, many, count, exec).
-	File      string    // File is the path to the file of the query.
-	StartLine int       // StartLine is the line number where the query starts.
-}
-
-type Domain struct {
-	Name    string  // DomainName is the PascalCase name derived from the .dsql file name.
-	Queries []Query // Queries holds every query found in the file.
-}
 
 // LoadDir walks queriesDir, parses every .dsql file found, and returns
 // one Domain per file with its queries extracted and validated.
 // Files or query blocks that don't match the expected format are
 // skipped with warning.
-func LoadDir(queriesDir string) ([]Domain, error) {
-	var domains []Domain
+func LoadDir(queriesDir string) ([]dsql.Domain, error) {
+	var domains []dsql.Domain
 
 	entries, err := os.ReadDir(queriesDir)
 	if err != nil {
@@ -57,7 +36,7 @@ func LoadDir(queriesDir string) ([]Domain, error) {
 			continue
 		}
 
-		var domain Domain
+		var domain dsql.Domain
 
 		domainNameRaw := strings.TrimSuffix(filename, extname)
 		domain.Name = strcase.ToCamel(domainNameRaw)
@@ -90,8 +69,8 @@ func (c filectx) current() string {
 }
 
 // parseQueries parses queries and their metadata from the provided file content.
-func parseQueries(filepath string, content string) []Query {
-	var queries []Query
+func parseQueries(filepath string, content string) []dsql.Query {
+	var queries []dsql.Query
 
 	ctx := filectx{filepath, 0}
 	// Mode is a flag for parsing modes.
@@ -107,12 +86,12 @@ func parseQueries(filepath string, content string) []Query {
 
 	var queryStartAt filectx
 	queryName := ""
-	queryKind := QueryKind("")
+	queryKind := dsql.QueryKind("")
 
 	queryBuilder := strings.Builder{}
 
 	flushQuery := func() {
-		queries = append(queries, Query{
+		queries = append(queries, dsql.Query{
 			SQL:       strings.TrimSpace(queryBuilder.String()),
 			Name:      queryName,
 			Kind:      queryKind,
@@ -210,23 +189,23 @@ func parseQueries(filepath string, content string) []Query {
 	return queries
 }
 
-func parseMetadata(ctx filectx, line string) (string, QueryKind) {
+func parseMetadata(ctx filectx, line string) (string, dsql.QueryKind) {
 	parts := strings.Fields(line)
 
 	if len(parts) != 3 {
 		log.Fatalf("invalid metadata line at %s\n", ctx.current())
-		return "", QueryKind("")
+		return "", dsql.QueryKind("")
 	}
 
 	return strcase.ToCamel(parts[1]), parseQueryKind(ctx, parts[2])
 }
 
-func parseQueryKind(ctx filectx, raw string) QueryKind {
+func parseQueryKind(ctx filectx, raw string) dsql.QueryKind {
 	switch raw {
 	case "one", "many", "count", "exec":
-		return QueryKind(raw)
+		return dsql.QueryKind(raw)
 	default:
 		log.Fatalf("invalid query kind \"%s\" at %s\n", raw, ctx.current())
-		return QueryKind("")
+		return dsql.QueryKind("")
 	}
 }

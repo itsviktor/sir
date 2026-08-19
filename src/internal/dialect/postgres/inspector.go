@@ -8,8 +8,9 @@ import (
 	"github.com/itsviktor/sir/src/internal/schema"
 )
 
-// Inspect returns tables and columns using the provided connection.
-func Inspect(db *sql.DB) (map[string]schema.Table, error) {
+type PostgresInspector struct{}
+
+func (i PostgresInspector) Inspect(db *sql.DB) (map[string]schema.Table, error) {
 	tables := make(map[string]schema.Table)
 
 	err := parseEnumTypes(db)
@@ -31,19 +32,19 @@ func Inspect(db *sql.DB) (map[string]schema.Table, error) {
 	defer rows.Close()
 
 	for rows.Next() {
-		var table pgTable
-		if err := rows.Scan(&table.NameC); err != nil {
+		var table schema.Table
+		if err := rows.Scan(&table.Name); err != nil {
 			return tables, fmt.Errorf("scanning tables: %w", err)
 		}
 
-		columns, err := parseColumns(db, table.NameC)
+		columns, err := parseColumns(db, table.Name)
 		if err != nil {
-			return tables, fmt.Errorf("getting columns for table %s: %w", table.NameC, err)
+			return tables, fmt.Errorf("getting columns for table %s: %w", table.Name, err)
 		}
 
-		table.columns = columns
+		table.Columns = columns
 
-		tables[table.NameC] = table
+		tables[table.Name] = table
 	}
 	if err = rows.Err(); err != nil {
 		return tables, err
@@ -77,7 +78,7 @@ func parseEnumTypes(db *sql.DB) error {
 		var t pgEnumType
 		var values []byte
 
-		if err := rows.Scan(&t.NameC, &values); err != nil {
+		if err := rows.Scan(&t.Name, &values); err != nil {
 			return fmt.Errorf("scanning type: %w", err)
 		}
 
@@ -85,7 +86,7 @@ func parseEnumTypes(db *sql.DB) error {
 			return fmt.Errorf("parsing enum values: %w", err)
 		}
 
-		schema.RegisterType(t.NameC, t)
+		schema.RegisterType(t.Name, t)
 	}
 	if err := rows.Err(); err != nil {
 		return err
@@ -95,8 +96,8 @@ func parseEnumTypes(db *sql.DB) error {
 }
 
 // parseColumns parses all columns of the provided table.
-func parseColumns(db *sql.DB, tableName string) (map[string]*pgColumn, error) {
-	columns := make(map[string]*pgColumn)
+func parseColumns(db *sql.DB, tableName string) (map[string]schema.Column, error) {
+	columns := make(map[string]schema.Column)
 
 	const query = `
 		SELECT
@@ -127,18 +128,19 @@ func parseColumns(db *sql.DB, tableName string) (map[string]*pgColumn, error) {
 	}
 
 	for rows.Next() {
-		column := &pgColumn{}
-		if err := rows.Scan(&column.NameC, &column.DefaultValueC, &column.DbTypeC, &column.IsPrimaryKeyC, &column.IsNullableC); err != nil {
+		var column schema.Column
+		var dbType string
+		if err := rows.Scan(&column.Name, &column.DefaultValue, &dbType, &column.IsPrimaryKey, &column.IsNullable); err != nil {
 			return columns, fmt.Errorf("scanning column: %w", err)
 		}
 
-		t, err := parseType(column.DbTypeC, column.IsNullableC)
+		t, err := parseType(dbType, column.IsNullable)
 		if err != nil {
-			return columns, fmt.Errorf("parsing type for column %s: %w", column.NameC, err)
+			return columns, fmt.Errorf("parsing type for column %s: %w", column.Name, err)
 		}
-		column.t = t
+		column.Type = t
 
-		columns[column.NameC] = column
+		columns[column.Name] = column
 	}
 	if err := rows.Err(); err != nil {
 		return columns, err

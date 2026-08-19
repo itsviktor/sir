@@ -2,7 +2,6 @@ package postgres
 
 import (
 	"fmt"
-	"log"
 	"strings"
 
 	"github.com/antlr4-go/antlr/v4"
@@ -55,8 +54,16 @@ func (s *scope) printRoot(offset int) {
 	}
 }
 
+type QueryPart struct {
+	SQL string
+}
+
+type QueryWhereClause struct {
+}
+
 func Transform(query dsql.Query, tables map[string]schema.Table, domainName string) {
 	utils.Debugf("transforming %s query:\n%s\n\n", domainName, query.SQL)
+	transformCtx := transformer.NewTransformContext(query.File, query.StartLine)
 
 	input := antlr.NewInputStream(query.SQL)
 	lexer := parser.NewPostgreSQLLexer(input)
@@ -96,12 +103,14 @@ func Transform(query dsql.Query, tables map[string]schema.Table, domainName stri
 		tableRefCtx, ok := ctx.(*parser.Table_refContext)
 		if ok {
 			if queryScope == nil {
-				traceerr("table ref inside nil scope")
+				transformCtx.PositionToToken(tableRefCtx.GetStart())
+				utils.TraceErr(transformCtx.Pos, "table ref inside nil scope")
 			}
 
 			rel, err := parseTableRelation(tableRefCtx)
 			if err != nil {
-				traceerr(fmt.Sprintf("transforming query: %v", err))
+				transformCtx.PositionToToken(tableRefCtx.GetStart())
+				utils.TraceErr(transformCtx.Pos, "transforming query: %v", err)
 			}
 
 			utils.Debugf("relation: %+v\n", rel)
@@ -138,7 +147,8 @@ func Transform(query dsql.Query, tables map[string]schema.Table, domainName stri
 
 			scope, ok := scopeByContext[selectContext]
 			if !ok {
-				traceerr("scope not found for selected context")
+				transformCtx.PositionToToken(selectContext.GetStart())
+				utils.TraceErr(transformCtx.Pos, "scope not found for the select context")
 			}
 			currentScope = scope
 
@@ -147,8 +157,7 @@ func Transform(query dsql.Query, tables map[string]schema.Table, domainName stri
 
 		whereCtx, ok := ctx.(*parser.Where_clauseContext)
 		if ok {
-			utils.Debugf("where ctx: %s\n", whereCtx.GetText())
-			analyzeWhere(whereCtx, currentScope)
+			analyzeWhere(whereCtx, currentScope, transformCtx)
 		}
 	}, func(ctx antlr.Tree) {
 		_, ok := ctx.(*parser.Select_clauseContext)
@@ -157,11 +166,6 @@ func Transform(query dsql.Query, tables map[string]schema.Table, domainName stri
 			currentScope = currentScope.parent
 		}
 	})
-}
-
-// TODO: implement error tracing
-func traceerr(msg string) {
-	log.Fatalf("%s", msg)
 }
 
 func parseTableRelation(ctx *parser.Table_refContext) (tableRelation, error) {
@@ -240,6 +244,13 @@ func parseTableRelation(ctx *parser.Table_refContext) (tableRelation, error) {
 	return rel, nil
 }
 
-func analyzeWhere(whereCtx *parser.Where_clauseContext, scope *scope) {
+func analyzeWhere(whereCtx *parser.Where_clauseContext, scope *scope, transformCtx *transformer.TransformContext) {
+	utils.Debugf("where ctx: %s\n", whereCtx.GetText())
+
+	expr := whereCtx.A_expr()
+	if expr == nil {
+		transformCtx.PositionToToken(whereCtx.GetStart())
+		utils.TraceErr(transformCtx.Pos, "where condition without expression (probably an ANTLR issue)")
+	}
 
 }

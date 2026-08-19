@@ -1,17 +1,16 @@
 package schema
 
-type Table interface {
-	Name() string
-	HasColumn(name string) bool
-	GetColumn(name string) Column
+type Table struct {
+	Name    string
+	Columns map[string]Column
 }
 
-type Column interface {
-	Name() string
-	DefaultValue() *string
-	Type() ColumnType
-	IsNullable() bool
-	IsPrimaryKey() bool
+type Column struct {
+	Name         string
+	DefaultValue *string
+	Type         ColumnType
+	IsNullable   bool
+	IsPrimaryKey bool
 }
 
 type ColumnType interface {

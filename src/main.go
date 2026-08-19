@@ -1,13 +1,12 @@
 package main
 
 import (
-	"database/sql"
 	"log"
 
-	"github.com/itsviktor/sir/src/internal/connection"
-	"github.com/itsviktor/sir/src/internal/dbtype"
-	"github.com/itsviktor/sir/src/internal/dsql"
-	"github.com/itsviktor/sir/src/internal/implementation/postgres"
+	"github.com/itsviktor/sir/src/internal/database"
+	"github.com/itsviktor/sir/src/internal/dialect/postgres"
+	"github.com/itsviktor/sir/src/internal/loader"
+	"github.com/itsviktor/sir/src/internal/schema"
 	"github.com/itsviktor/sir/src/internal/utils"
 )
 
@@ -29,42 +28,38 @@ func main() {
 	}
 
 	// Validating driver name.
-	dbType, err := dbtype.ParseAndValidate(driver)
+	dialect, err := database.DialectFromDriver(driver)
 	if err != nil {
 		log.Fatalf("%v", err)
 	}
-	db, err := connection.Connect(driver, dsn)
+
+	// Connecting to the database.
+	db, err := database.Connect(driver, dsn)
 	if err != nil {
 		log.Fatalf("connection error: %v", err)
 	}
 
-	switch dbType {
-	case dbtype.TypePostgres:
-		doPostgres(db)
+	// Creating schema inspector.
+	var inspector schema.Inspector
+	switch dialect {
+	case database.Postgres:
+		inspector = &postgres.PostgresInspector{}
 	default:
-		log.Fatalf("unsupported database type: %s", dbType)
+		log.Fatalf("unsupported database dialect: %s", dialect)
 	}
-}
 
-func doPostgres(db *sql.DB) {
-	// Getting database structure.
-	tables, err := postgres.Inspect(db)
+	// Getting the database schema.
+	tables, err := inspector.Inspect(db)
 	if err != nil {
-		log.Fatalf("inspecting postgres table structure: %v", err)
+		log.Fatalf("inspecting database schema: %v", err)
+	}
+
+	// Loading user queries.
+	domains, err := loader.LoadDir("queries")
+	if err != nil {
+		log.Fatalf("loading query files: %v", err)
 	}
 
 	_ = tables
-
-	// Parsing user queries.
-	domains, err := dsql.LoadDir("queries")
-	if err != nil {
-		log.Fatalf("parsing query files: %v", err)
-	}
-
-	// Transforming queries into internal representation.
-	for _, domain := range domains {
-		for _, query := range domain.Queries {
-			postgres.Transform(query, tables, domain.Name)
-		}
-	}
+	_ = domains
 }
