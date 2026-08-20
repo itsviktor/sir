@@ -46,8 +46,7 @@ func LoadDir(queriesDir string) ([]dsql.Domain, error) {
 			return domains, fmt.Errorf("reading %s: %w", filename, err)
 		}
 
-		queries := parseQueries(fullpath, string(fileContent))
-		domain.Queries = queries
+		domain.Queries = parseQueries(fullpath, string(fileContent))
 
 		domains = append(domains, domain)
 	}
@@ -86,7 +85,7 @@ func parseQueries(filepath string, content string) []dsql.Query {
 
 	var queryStartAt filectx
 	queryName := ""
-	queryKind := dsql.QueryKind("")
+	queryKind := dsql.Kind("")
 
 	queryBuilder := strings.Builder{}
 
@@ -189,23 +188,23 @@ func parseQueries(filepath string, content string) []dsql.Query {
 	return queries
 }
 
-func parseMetadata(ctx filectx, line string) (string, dsql.QueryKind) {
+func parseMetadata(ctx filectx, line string) (string, dsql.Kind) {
 	parts := strings.Fields(line)
 
 	if len(parts) != 3 {
 		log.Fatalf("invalid metadata line at %s\n", ctx.current())
-		return "", dsql.QueryKind("")
+		return "", dsql.Kind("")
 	}
 
 	return strcase.ToCamel(parts[1]), parseQueryKind(ctx, parts[2])
 }
 
-func parseQueryKind(ctx filectx, raw string) dsql.QueryKind {
+func parseQueryKind(ctx filectx, raw string) dsql.Kind {
 	switch raw {
 	case "one", "many", "count", "exec":
-		return dsql.QueryKind(raw)
+		return dsql.Kind(raw)
 	default:
 		log.Fatalf("invalid query kind \"%s\" at %s\n", raw, ctx.current())
-		return dsql.QueryKind("")
+		return dsql.Kind("")
 	}
 }

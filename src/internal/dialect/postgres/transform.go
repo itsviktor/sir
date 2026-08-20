@@ -2,66 +2,18 @@ package postgres
 
 import (
 	"fmt"
-	"strings"
 
 	"github.com/antlr4-go/antlr/v4"
 	"github.com/itsviktor/sir/src/internal/dsql"
+	"github.com/itsviktor/sir/src/internal/ir"
 	"github.com/itsviktor/sir/src/internal/parser"
-	"github.com/itsviktor/sir/src/internal/schema"
 	"github.com/itsviktor/sir/src/internal/transformer"
 	"github.com/itsviktor/sir/src/internal/utils"
 )
 
-type tableRelation struct {
-	schema string
-	name   string
-	alias  string
-}
+type PostgresTransformer struct{}
 
-type scope struct {
-	parent    *scope
-	children  []*scope
-	relations []string
-	aliases   map[string]string
-}
-
-func newScope() *scope {
-	return &scope{
-		parent:    nil,
-		children:  make([]*scope, 0),
-		relations: make([]string, 0),
-		aliases:   make(map[string]string),
-	}
-}
-
-func (s *scope) addChild(children *scope) {
-	s.children = append(s.children, children)
-	children.parent = s
-}
-
-func (s *scope) printRoot(offset int) {
-	utils.Debugf("%sscope relations: \n", strings.Repeat(" ", offset))
-	for _, rel := range s.relations {
-		utils.Debugf("%s- %s\n", strings.Repeat(" ", offset), rel)
-	}
-	utils.Debugf("%sscope aliases: \n", strings.Repeat(" ", offset))
-	for alias, rel := range s.aliases {
-		utils.Debugf("%s- %s -> %s\n", strings.Repeat(" ", offset), alias, rel)
-	}
-
-	for _, child := range s.children {
-		child.printRoot(offset + 4)
-	}
-}
-
-type QueryPart struct {
-	SQL string
-}
-
-type QueryWhereClause struct {
-}
-
-func Transform(query dsql.Query, tables map[string]schema.Table, domainName string) {
+func (t PostgresTransformer) Transform(query dsql.Query, domainName string) ir.QueryIR {
 	utils.Debugf("transforming %s query:\n%s\n\n", domainName, query.SQL)
 	transformCtx := transformer.NewTransformContext(query.File, query.StartLine)
 
@@ -80,92 +32,41 @@ func Transform(query dsql.Query, tables map[string]schema.Table, domainName stri
 
 	tree := p.Root()
 
-	// First traversal to build scopes.
-	utils.Debug("DEBUG create scopes\n")
-	var queryScope *scope
-	scopeByContext := map[*parser.Select_clauseContext]*scope{}
-	transformer.WalkAntlrTree(tree, func(ctx antlr.Tree) {
-		selectContext, ok := ctx.(*parser.Select_clauseContext)
-		if ok {
-			utils.Debugf("create new scope\n")
-
-			nScope := newScope()
-			if queryScope != nil {
-				queryScope.addChild(nScope)
-			}
-			queryScope = nScope
-
-			scopeByContext[selectContext] = nScope
-
-			return
-		}
-
+	relations := map[string]struct{}{}
+	aliases := map[string]string{}
+	transformer.WalkTree(tree, func(ctx antlr.Tree) {
+		// Parse relations and aliases.
 		tableRefCtx, ok := ctx.(*parser.Table_refContext)
 		if ok {
-			if queryScope == nil {
-				transformCtx.PositionToToken(tableRefCtx.GetStart())
-				utils.TraceErr(transformCtx.Pos, "table ref inside nil scope")
-			}
-
 			rel, err := parseTableRelation(tableRefCtx)
 			if err != nil {
-				transformCtx.PositionToToken(tableRefCtx.GetStart())
-				utils.TraceErr(transformCtx.Pos, "transforming query: %v", err)
+				transformCtx.ErrOnToken(tableRefCtx.GetStart(), "parsing table relation: %v", err)
 			}
 
-			utils.Debugf("relation: %+v\n", rel)
-
-			if rel.alias == "" {
-				queryScope.relations = append(queryScope.relations, rel.name)
-			} else {
-				queryScope.aliases[rel.alias] = rel.name
+			relations[rel.name] = struct{}{}
+			if rel.alias != "" {
+				aliases[rel.alias] = rel.name
 			}
 
 			return
 		}
-	}, func(ctx antlr.Tree) {
-		_, ok := ctx.(*parser.Select_clauseContext)
-		if ok {
-			parentScope := queryScope.parent
-			if parentScope != nil {
-				utils.Debugf("exit from scope\n")
-				queryScope = parentScope
-			}
-		}
-	})
 
-	utils.Debugf("\nDEBUG scopes\n")
-	queryScope.printRoot(0)
+		// Parse where expressions.
+		// whereCtx, ok := ctx.(*parser.Where_clauseContext)
+		// if ok {
+		// 	part, ok
+		// }
+	}, func(ctx antlr.Tree) {})
 
-	// Second traversal to analyze dsql tokens.
-	utils.Debugf("\nDEBUG where analyze\n")
-	var currentScope *scope
-	transformer.WalkAntlrTree(tree, func(ctx antlr.Tree) {
-		selectContext, ok := ctx.(*parser.Select_clauseContext)
-		if ok {
-			utils.Debugf("enter scope\n")
+	fmt.Printf("relations: %+v\naliases: %+v\n", relations, aliases)
 
-			scope, ok := scopeByContext[selectContext]
-			if !ok {
-				transformCtx.PositionToToken(selectContext.GetStart())
-				utils.TraceErr(transformCtx.Pos, "scope not found for the select context")
-			}
-			currentScope = scope
+	return ir.QueryIR{}
+}
 
-			return
-		}
-
-		whereCtx, ok := ctx.(*parser.Where_clauseContext)
-		if ok {
-			analyzeWhere(whereCtx, currentScope, transformCtx)
-		}
-	}, func(ctx antlr.Tree) {
-		_, ok := ctx.(*parser.Select_clauseContext)
-		if ok {
-			utils.Debugf("exit scope\n")
-			currentScope = currentScope.parent
-		}
-	})
+type tableRelation struct {
+	schema string
+	name   string
+	alias  string
 }
 
 func parseTableRelation(ctx *parser.Table_refContext) (tableRelation, error) {
@@ -244,13 +145,13 @@ func parseTableRelation(ctx *parser.Table_refContext) (tableRelation, error) {
 	return rel, nil
 }
 
-func analyzeWhere(whereCtx *parser.Where_clauseContext, scope *scope, transformCtx *transformer.TransformContext) {
-	utils.Debugf("where ctx: %s\n", whereCtx.GetText())
+// func analyzeWhere(whereCtx *parser.Where_clauseContext, scope *scope, transformCtx *transformer.TransformContext) {
+// 	utils.Debugf("where ctx: %s\n", whereCtx.GetText())
 
-	expr := whereCtx.A_expr()
-	if expr == nil {
-		transformCtx.PositionToToken(whereCtx.GetStart())
-		utils.TraceErr(transformCtx.Pos, "where condition without expression (probably an ANTLR issue)")
-	}
+// 	expr := whereCtx.A_expr()
+// 	if expr == nil {
+// 		transformCtx.PositionToToken(whereCtx.GetStart())
+// 		utils.TraceErr(transformCtx.Pos, "where condition without expression (probably an ANTLR issue)")
+// 	}
 
-}
+// }

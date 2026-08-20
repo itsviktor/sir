@@ -7,6 +7,7 @@ import (
 	"github.com/itsviktor/sir/src/internal/dialect/postgres"
 	"github.com/itsviktor/sir/src/internal/loader"
 	"github.com/itsviktor/sir/src/internal/schema"
+	"github.com/itsviktor/sir/src/internal/transformer"
 	"github.com/itsviktor/sir/src/internal/utils"
 )
 
@@ -60,6 +61,23 @@ func main() {
 		log.Fatalf("loading query files: %v", err)
 	}
 
+	// Creating ir transformer.
+	var t transformer.Transformer
+	switch dialect {
+	case database.Postgres:
+		t = &postgres.PostgresTransformer{}
+	default:
+		log.Fatalf("unsupported database dialect: %s", dialect)
+	}
+
+	// Transforming queries to internal representation.
+	for _, domain := range domains {
+		for _, query := range domain.Queries {
+			ir := t.Transform(query, domain.Name)
+
+			_ = ir
+		}
+	}
+
 	_ = tables
-	_ = domains
 }

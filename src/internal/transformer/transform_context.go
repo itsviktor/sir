@@ -6,22 +6,26 @@ import (
 )
 
 type TransformContext struct {
-	Pos       utils.Position
+	Filepath  string
 	StartLine int
 }
 
 func NewTransformContext(filepath string, startLine int) *TransformContext {
 	return &TransformContext{
 		StartLine: startLine,
-		Pos: utils.Position{
-			Filepath: filepath,
-			Line:     0,
-			Column:   0,
-		},
+		Filepath:  filepath,
 	}
 }
 
-func (ctx *TransformContext) PositionToToken(token antlr.Token) {
-	ctx.Pos.Line = token.GetLine() + ctx.StartLine - 1
-	ctx.Pos.Column = token.GetColumn()
+func (ctx *TransformContext) TokenToPosition(token antlr.Token) utils.FilePosition {
+	return utils.FilePosition{
+		Filepath: ctx.Filepath,
+		Line:     token.GetLine() + ctx.StartLine - 1,
+		Column:   token.GetColumn(),
+	}
+
+}
+
+func (ctx *TransformContext) ErrOnToken(token antlr.Token, format string, v ...any) {
+	utils.TraceErr(ctx.TokenToPosition(token), format, v...)
 }
