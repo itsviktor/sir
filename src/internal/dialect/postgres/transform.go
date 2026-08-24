@@ -5,7 +5,6 @@ import (
 
 	"github.com/antlr4-go/antlr/v4"
 	"github.com/itsviktor/sir/src/internal/dsql"
-	"github.com/itsviktor/sir/src/internal/ir"
 	"github.com/itsviktor/sir/src/internal/parser"
 	"github.com/itsviktor/sir/src/internal/transformer"
 	"github.com/itsviktor/sir/src/internal/utils"
@@ -13,7 +12,7 @@ import (
 
 type PostgresTransformer struct{}
 
-func (t PostgresTransformer) Transform(query dsql.Query, domainName string) ir.QueryIR {
+func (t PostgresTransformer) Transform(query dsql.Query, domainName string) {
 	utils.Debugf("transforming %s query:\n%s\n\n", domainName, query.SQL)
 	transformCtx := transformer.NewTransformContext(query.File, query.StartLine)
 
@@ -59,8 +58,6 @@ func (t PostgresTransformer) Transform(query dsql.Query, domainName string) ir.Q
 	}, func(ctx antlr.Tree) {})
 
 	fmt.Printf("relations: %+v\naliases: %+v\n", relations, aliases)
-
-	return ir.QueryIR{}
 }
 
 type tableRelation struct {

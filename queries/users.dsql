@@ -1,4 +1,4 @@
---> GetById one
+--> GetList many
 SELECT *
 FROM users u
 LEFT JOIN orders o ON o.user_id = u.id
