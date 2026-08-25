@@ -73,9 +73,7 @@ func main() {
 	// Transforming queries to internal representation.
 	for _, domain := range domains {
 		for _, query := range domain.Queries {
-			ir := t.Transform(query, domain.Name)
-
-			_ = ir
+			t.Transform(query, domain.Name)
 		}
 	}
 

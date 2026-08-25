@@ -1,10 +1,11 @@
 package postgres
 
 import (
-	"fmt"
+	"log"
 
 	"github.com/antlr4-go/antlr/v4"
 	"github.com/itsviktor/sir/src/internal/dsql"
+	"github.com/itsviktor/sir/src/internal/ir"
 	"github.com/itsviktor/sir/src/internal/parser"
 	"github.com/itsviktor/sir/src/internal/transformer"
 	"github.com/itsviktor/sir/src/internal/utils"
@@ -12,11 +13,11 @@ import (
 
 type PostgresTransformer struct{}
 
-func (t PostgresTransformer) Transform(query dsql.Query, domainName string) {
-	utils.Debugf("transforming %s query:\n%s\n\n", domainName, query.SQL)
-	transformCtx := transformer.NewTransformContext(query.File, query.StartLine)
+func (t PostgresTransformer) Transform(q dsql.Query, domainName string) {
+	utils.Debugf("transforming %s query:\n%s\n\n", domainName, q.SQL)
+	transformCtx := transformer.NewTransformContext(q.File, q.StartLine)
 
-	input := antlr.NewInputStream(query.SQL)
+	input := antlr.NewInputStream(q.SQL)
 	lexer := parser.NewPostgreSQLLexer(input)
 
 	lexer.RemoveErrorListeners()
@@ -31,124 +32,73 @@ func (t PostgresTransformer) Transform(query dsql.Query, domainName string) {
 
 	tree := p.Root()
 
-	relations := map[string]struct{}{}
-	aliases := map[string]string{}
+	// First walk to build scopes tree.
+	var rootScope *scope
+	nodeToScope := map[antlr.Tree]*scope{}
 	transformer.WalkTree(tree, func(ctx antlr.Tree) {
-		// Parse relations and aliases.
-		tableRefCtx, ok := ctx.(*parser.Table_refContext)
+		selectCtx, ok := ctx.(*parser.Select_clauseContext)
 		if ok {
-			rel, err := parseTableRelation(tableRefCtx)
-			if err != nil {
-				transformCtx.ErrOnToken(tableRefCtx.GetStart(), "parsing table relation: %v", err)
+			nscope := newScope(selectCtx)
+
+			if rootScope == nil {
+				rootScope = nscope
+			} else {
+				rootScope.add(nscope)
+				rootScope = nscope
 			}
 
-			relations[rel.name] = struct{}{}
-			if rel.alias != "" {
-				aliases[rel.alias] = rel.name
-			}
+			nodeToScope[ctx] = rootScope
 
 			return
 		}
 
-		// Parse where expressions.
-		// whereCtx, ok := ctx.(*parser.Where_clauseContext)
-		// if ok {
-		// 	part, ok
-		// }
+		tableCtx, ok := ctx.(*parser.Table_refContext)
+		if ok {
+			if rootScope == nil {
+				transformCtx.ErrOnToken(tableCtx.GetStart(), "table reference in empty scope")
+			}
+
+			rel := parseRelation(tableCtx, transformCtx)
+
+			tableRel, ok := rel.(*ir.TableRelation)
+			if ok {
+				rootScope.relations[tableRel.Name] = tableRel
+				if tableRel.Alias != nil {
+					alias := *tableRel.Alias
+					if rootScope.hasAlias(alias) {
+						transformCtx.ErrOnToken(tableCtx.GetStart(), "duplicate alias %s", alias)
+					}
+
+					rootScope.aliases[alias] = tableRel
+				}
+			}
+		}
+	}, func(ctx antlr.Tree) {
+		_, ok := ctx.(*parser.Select_clauseContext)
+		if ok {
+			if rootScope == nil {
+				log.Fatalf("exit from nil scope")
+			}
+
+			if rootScope.parent != nil {
+				rootScope = rootScope.parent
+			}
+		}
+	})
+
+	// Second walk to build query.
+	var query ir.Query
+	transformer.WalkTree(tree, func(rawCtx antlr.Tree) {
+		switch ctx := rawCtx.(type) {
+		case *parser.Select_clauseContext:
+			scope, ok := nodeToScope[ctx]
+			if !ok {
+				transformCtx.ErrOnToken(ctx.GetStart(), "select clause inside empty scope")
+			}
+
+			query = parseSelectQuery(ctx, scope, transformCtx)
+		}
 	}, func(ctx antlr.Tree) {})
 
-	fmt.Printf("relations: %+v\naliases: %+v\n", relations, aliases)
+	query.Print()
 }
-
-type tableRelation struct {
-	schema string
-	name   string
-	alias  string
-}
-
-func parseTableRelation(ctx *parser.Table_refContext) (tableRelation, error) {
-	var rel tableRelation
-
-	aliasCtx := ctx.Alias_clause()
-	if aliasCtx != nil {
-		colidCtx := aliasCtx.Colid()
-		if colidCtx == nil {
-			return rel, fmt.Errorf("failed to find colid context in the alias context")
-		}
-
-		rel.alias = colidCtx.GetText()
-	}
-
-	relCtx := ctx.Relation_expr()
-	if relCtx == nil {
-		return rel, fmt.Errorf("failed to find relation expression in the query")
-	}
-
-	qnameCtx := relCtx.Qualified_name()
-	if qnameCtx == nil {
-		return rel, fmt.Errorf("failed to find qualified name context in the query")
-	}
-
-	qnameChildren := qnameCtx.GetChildren()
-
-	switch len(qnameChildren) {
-	case 1:
-		child := qnameChildren[0]
-
-		colidCtx, ok := child.(*parser.ColidContext)
-		if !ok {
-			return rel, fmt.Errorf(
-				"expected ColidContext, got %T",
-				child,
-			)
-		}
-
-		rel.name = colidCtx.GetText()
-	case 2:
-		child := qnameChildren[0]
-
-		colidCtx, ok := child.(*parser.ColidContext)
-		if !ok {
-			return rel, fmt.Errorf(
-				"expected ColidContext, got %T",
-				child,
-			)
-		}
-
-		rel.schema = colidCtx.GetText()
-
-		child = qnameChildren[1]
-
-		indirCtx, ok := child.(*parser.IndirectionContext)
-		if !ok {
-			return rel, fmt.Errorf("mismatched qname children amount and child type; wait for IndirectionContext, got %T", child)
-		}
-
-		indirEl := indirCtx.Indirection_el(0)
-		if indirEl == nil {
-			return rel, fmt.Errorf("failed to parse indirection element child")
-		}
-
-		attrName := indirEl.Attr_name()
-		if attrName == nil {
-			return rel, fmt.Errorf("failed to parse attribute name from the indirection element")
-		}
-
-		rel.name = attrName.GetText()
-	default:
-		return rel, fmt.Errorf("invalid qname children amount %d", len(qnameChildren))
-	}
-
-	return rel, nil
-}
-
-// func analyzeWhere(whereCtx *parser.Where_clauseContext, scope *scope, transformCtx *transformer.TransformContext) {
-// 	utils.Debugf("where ctx: %s\n", whereCtx.GetText())
-
-// 	expr := whereCtx.A_expr()
-// 	if expr == nil {
-// 		transformCtx.PositionToToken(whereCtx.GetStart())
-// 		utils.TraceErr(transformCtx.Pos, "where condition without expression (probably an ANTLR issue)")
-// 	}
-
-// }

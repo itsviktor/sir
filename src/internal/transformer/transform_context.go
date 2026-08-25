@@ -5,19 +5,19 @@ import (
 	"github.com/itsviktor/sir/src/internal/utils"
 )
 
-type TransformContext struct {
+type Context struct {
 	Filepath  string
 	StartLine int
 }
 
-func NewTransformContext(filepath string, startLine int) *TransformContext {
-	return &TransformContext{
+func NewTransformContext(filepath string, startLine int) *Context {
+	return &Context{
 		StartLine: startLine,
 		Filepath:  filepath,
 	}
 }
 
-func (ctx *TransformContext) TokenToPosition(token antlr.Token) utils.FilePosition {
+func (ctx *Context) TokenToPosition(token antlr.Token) utils.FilePosition {
 	return utils.FilePosition{
 		Filepath: ctx.Filepath,
 		Line:     token.GetLine() + ctx.StartLine - 1,
@@ -26,6 +26,6 @@ func (ctx *TransformContext) TokenToPosition(token antlr.Token) utils.FilePositi
 
 }
 
-func (ctx *TransformContext) ErrOnToken(token antlr.Token, format string, v ...any) {
+func (ctx *Context) ErrOnToken(token antlr.Token, format string, v ...any) {
 	utils.TraceErr(ctx.TokenToPosition(token), format, v...)
 }
