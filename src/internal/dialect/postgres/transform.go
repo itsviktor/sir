@@ -58,7 +58,7 @@ func (t PostgresTransformer) Transform(q dsql.Query, domainName string) {
 				transformCtx.ErrOnToken(tableCtx.GetStart(), "table reference in empty scope")
 			}
 
-			rel := parseRelation(tableCtx, transformCtx)
+			rel := parseRelation(tableCtx, rootScope, transformCtx)
 
 			tableRel, ok := rel.(*ir.TableRelation)
 			if ok {

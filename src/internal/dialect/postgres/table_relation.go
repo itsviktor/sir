@@ -9,16 +9,16 @@ import (
 	"github.com/itsviktor/sir/src/internal/transformer"
 )
 
-func parseRelation(ctx *parser.Table_refContext, transformCtx *transformer.Context) ir.Relation {
+func parseRelation(ctx *parser.Table_refContext, scope *scope, transformCtx *transformer.Context) ir.Relation {
 	_, ok := transformer.FindFirstWide[*parser.Join_qualContext](ctx)
 	if ok {
-		return parseJoinRelation(ctx, transformCtx)
+		return parseJoinRelation(ctx, scope, transformCtx)
 	} else {
-		return parseTableRelation(ctx, transformCtx)
+		return parseTableRelation(ctx, scope, transformCtx)
 	}
 }
 
-func parseJoinRelation(ctx *parser.Table_refContext, transformCtx *transformer.Context) *ir.JoinRelation {
+func parseJoinRelation(ctx *parser.Table_refContext, scope *scope, transformCtx *transformer.Context) *ir.JoinRelation {
 	rel := &ir.JoinRelation{}
 
 	// Parsing left table relation.
@@ -43,14 +43,14 @@ func parseJoinRelation(ctx *parser.Table_refContext, transformCtx *transformer.C
 		transformCtx.ErrOnToken(ctx.GetStart(), "invalid join, no table ref for the right table")
 	}
 
-	right := parseTableRelation(rightTableCtx, transformCtx)
+	right := parseTableRelation(rightTableCtx, scope, transformCtx)
 	rel.Right = right
 
 	// Parsing join type.
 	joinType := ir.InnerJoin
 	joinTypeCtx, ok := transformer.FindFirstWide[*parser.Join_typeContext](ctx)
 	if ok {
-		joinType = parseJoinType(joinTypeCtx, transformCtx)
+		joinType = parseJoinType(joinTypeCtx, scope, transformCtx)
 	}
 	rel.Type = joinType
 
@@ -63,12 +63,12 @@ func parseJoinRelation(ctx *parser.Table_refContext, transformCtx *transformer.C
 	if !ok {
 		transformCtx.ErrOnToken(ctx.GetStart(), "invalid join qual ctx, no A expression context")
 	}
-	rel.On = parseExpr(aExpr, transformCtx)
+	rel.On = parseExpr(aExpr, scope, transformCtx)
 
 	return rel
 }
 
-func parseJoinType(joinTypeCtx *parser.Join_typeContext, transformCtx *transformer.Context) ir.JoinType {
+func parseJoinType(joinTypeCtx *parser.Join_typeContext, scope *scope, transformCtx *transformer.Context) ir.JoinType {
 	firstChild := joinTypeCtx.GetChild(0)
 	if firstChild == nil {
 		transformCtx.ErrOnToken(joinTypeCtx.GetStart(), "invalid join type, first child is nil")
@@ -95,7 +95,7 @@ func parseJoinType(joinTypeCtx *parser.Join_typeContext, transformCtx *transform
 	return ir.InnerJoin
 }
 
-func parseTableRelation(ctx *parser.Table_refContext, transformCtx *transformer.Context) *ir.TableRelation {
+func parseTableRelation(ctx *parser.Table_refContext, scope *scope, transformCtx *transformer.Context) *ir.TableRelation {
 	rel := &ir.TableRelation{}
 
 	firstChild := ctx.GetChild(0)

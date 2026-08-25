@@ -6,20 +6,20 @@ import (
 	"github.com/itsviktor/sir/src/internal/transformer"
 )
 
-func parseSelectQuery(selectCtx *parser.Select_clauseContext, scope *scope, transformCtx *transformer.Context) *ir.SelectQuery {
+func parseSelectQuery(selectCtx *parser.Select_clauseContext, scope *scope, tctx *transformer.Context) *ir.SelectQuery {
 	query := ir.NewSelectQuery()
 
-	query.Targets = parseTargets(selectCtx, transformCtx)
+	query.Targets = parseTargets(selectCtx, scope, tctx)
 
 	return query
 }
 
-func parseTargets(selectCtx *parser.Select_clauseContext, transformCtx *transformer.Context) []ir.Relation {
+func parseTargets(selectCtx *parser.Select_clauseContext, scope *scope, tctx *transformer.Context) []ir.Relation {
 	relations := make([]ir.Relation, 0)
 
 	fromClause, ok := transformer.FindFirst[*parser.From_listContext](selectCtx)
 	if !ok {
-		transformCtx.ErrOnToken(selectCtx.GetStart(), "no from clause in the select query")
+		tctx.ErrOnToken(selectCtx.GetStart(), "no from clause in the select query")
 	}
 
 	for _, child := range fromClause.GetChildren() {
@@ -28,7 +28,7 @@ func parseTargets(selectCtx *parser.Select_clauseContext, transformCtx *transfor
 			continue
 		}
 
-		rel := parseRelation(tableRefCtx, transformCtx)
+		rel := parseRelation(tableRefCtx, scope, tctx)
 		relations = append(relations, rel)
 	}
 
