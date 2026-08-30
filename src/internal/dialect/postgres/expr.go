@@ -9,13 +9,13 @@ import (
 	"github.com/itsviktor/sir/src/internal/transformer"
 )
 
-func parseExpr(aExpr *parser.A_exprContext, scope *scope, tctx *transformer.Context) ir.Expr {
+func parseExpr(aExpr *parser.A_exprContext, scope *transformer.Scope, tctx *transformer.Context) ir.Expr {
 	return parseQual(aExpr.A_expr_qual().(*parser.A_expr_qualContext), scope, tctx)
 }
 
 func parseQual(
 	aExpr *parser.A_expr_qualContext,
-	scope *scope,
+	scope *transformer.Scope,
 	tctx *transformer.Context,
 ) ir.Expr {
 	return parseLessLess(
@@ -27,7 +27,7 @@ func parseQual(
 
 func parseLessLess(
 	aExpr *parser.A_expr_lesslessContext,
-	scope *scope,
+	scope *transformer.Scope,
 	tctx *transformer.Context,
 ) ir.Expr {
 	left := parseOr(
@@ -55,7 +55,7 @@ func parseLessLess(
 
 func parseOr(
 	aExpr *parser.A_expr_orContext,
-	scope *scope,
+	scope *transformer.Scope,
 	tctx *transformer.Context,
 ) ir.Expr {
 	left := parseAnd(aExpr.A_expr_and(0).(*parser.A_expr_andContext), scope, tctx)
@@ -79,7 +79,7 @@ func parseOr(
 
 func parseAnd(
 	aExpr *parser.A_expr_andContext,
-	scope *scope,
+	scope *transformer.Scope,
 	tctx *transformer.Context,
 ) ir.Expr {
 	left := parseBetween(aExpr.A_expr_between(0).(*parser.A_expr_betweenContext), scope, tctx)
@@ -99,7 +99,7 @@ func parseAnd(
 
 func parseBetween(
 	aExpr *parser.A_expr_betweenContext,
-	scope *scope,
+	scope *transformer.Scope,
 	tctx *transformer.Context,
 ) ir.Expr {
 	left := parseIn(
@@ -135,7 +135,7 @@ func parseBetween(
 
 func parseIn(
 	aExpr *parser.A_expr_inContext,
-	scope *scope,
+	scope *transformer.Scope,
 	tctx *transformer.Context,
 ) ir.Expr {
 	left := parseUnaryNot(
@@ -174,7 +174,7 @@ func parseIn(
 		}
 	case *parser.In_expr_selectContext:
 		selectClause := rightNode.Select_with_parens().Select_no_parens().Select_clause().(*parser.Select_clauseContext)
-		subqueryScope, ok := scope.childrenByNode(selectClause)
+		subqueryScope, ok := scope.FindChildrenByNode(selectClause)
 		if !ok {
 			tctx.ErrOnToken(selectClause.GetStart(), "cannot found scope for this query")
 		}
@@ -205,7 +205,7 @@ func parseIn(
 
 func parseUnaryNot(
 	aExpr *parser.A_expr_unary_notContext,
-	scope *scope,
+	scope *transformer.Scope,
 	tctx *transformer.Context,
 ) ir.Expr {
 	expr := parseIsNull(
@@ -226,7 +226,7 @@ func parseUnaryNot(
 
 func parseIsNull(
 	aExpr *parser.A_expr_isnullContext,
-	scope *scope,
+	scope *transformer.Scope,
 	tctx *transformer.Context,
 ) ir.Expr {
 	left := parseIsNot(
@@ -254,7 +254,7 @@ func parseIsNull(
 
 func parseIsNot(
 	aExpr *parser.A_expr_is_notContext,
-	scope *scope,
+	scope *transformer.Scope,
 	tctx *transformer.Context,
 ) ir.Expr {
 	expr := parseCompare(
@@ -310,7 +310,7 @@ func parseIsNot(
 
 func parseCompare(
 	aExpr *parser.A_expr_compareContext,
-	scope *scope,
+	scope *transformer.Scope,
 	tctx *transformer.Context,
 ) ir.Expr {
 	left := parseLike(aExpr.A_expr_like(0).(*parser.A_expr_likeContext), scope, tctx)
@@ -339,7 +339,7 @@ func parseCompare(
 	}
 }
 
-func parseLike(aExpr *parser.A_expr_likeContext, scope *scope, tctx *transformer.Context) ir.Expr {
+func parseLike(aExpr *parser.A_expr_likeContext, scope *transformer.Scope, tctx *transformer.Context) ir.Expr {
 	left := parseQualOp(aExpr.A_expr_qual_op(0).(*parser.A_expr_qual_opContext), scope, tctx)
 
 	rightExpr := aExpr.A_expr_qual_op(1)
@@ -375,7 +375,7 @@ func parseLike(aExpr *parser.A_expr_likeContext, scope *scope, tctx *transformer
 	}
 }
 
-func parseQualOp(aExpr *parser.A_expr_qual_opContext, scope *scope, tctx *transformer.Context) ir.Expr {
+func parseQualOp(aExpr *parser.A_expr_qual_opContext, scope *transformer.Scope, tctx *transformer.Context) ir.Expr {
 	left := parseUnaryQualOp(aExpr.A_expr_unary_qualop(0).(*parser.A_expr_unary_qualopContext), scope, tctx)
 
 	for i := 1; i < len(aExpr.AllA_expr_unary_qualop()); i++ {
@@ -410,7 +410,7 @@ func parseQualOp(aExpr *parser.A_expr_qual_opContext, scope *scope, tctx *transf
 	return left
 }
 
-func parseUnaryQualOp(aExpr *parser.A_expr_unary_qualopContext, scope *scope, tctx *transformer.Context) ir.Expr {
+func parseUnaryQualOp(aExpr *parser.A_expr_unary_qualopContext, scope *transformer.Scope, tctx *transformer.Context) ir.Expr {
 	expr := parseAdd(aExpr.A_expr_add().(*parser.A_expr_addContext), scope, tctx)
 
 	qualOp := aExpr.Qual_op()
@@ -435,7 +435,7 @@ func parseUnaryQualOp(aExpr *parser.A_expr_unary_qualopContext, scope *scope, tc
 	}
 }
 
-func parseAdd(aExpr *parser.A_expr_addContext, scope *scope, tctx *transformer.Context) ir.Expr {
+func parseAdd(aExpr *parser.A_expr_addContext, scope *transformer.Scope, tctx *transformer.Context) ir.Expr {
 	left := parseMul(aExpr.A_expr_mul(0).(*parser.A_expr_mulContext), scope, tctx)
 
 	for i := 1; i < len(aExpr.AllA_expr_mul()); i++ {
@@ -470,7 +470,7 @@ func parseAdd(aExpr *parser.A_expr_addContext, scope *scope, tctx *transformer.C
 	return left
 }
 
-func parseMul(aExpr *parser.A_expr_mulContext, scope *scope, tctx *transformer.Context) ir.Expr {
+func parseMul(aExpr *parser.A_expr_mulContext, scope *transformer.Scope, tctx *transformer.Context) ir.Expr {
 	left := parseCaret(aExpr.A_expr_caret(0).(*parser.A_expr_caretContext), scope, tctx)
 
 	for i := 1; i < len(aExpr.AllA_expr_caret()); i++ {
@@ -505,7 +505,7 @@ func parseMul(aExpr *parser.A_expr_mulContext, scope *scope, tctx *transformer.C
 	return left
 }
 
-func parseCaret(aExpr *parser.A_expr_caretContext, scope *scope, tctx *transformer.Context) ir.Expr {
+func parseCaret(aExpr *parser.A_expr_caretContext, scope *transformer.Scope, tctx *transformer.Context) ir.Expr {
 	left := parseUnarySign(aExpr.A_expr_unary_sign(0).(*parser.A_expr_unary_signContext), scope, tctx)
 
 	rightExpr := aExpr.A_expr_unary_sign(1)
@@ -525,7 +525,7 @@ func parseCaret(aExpr *parser.A_expr_caretContext, scope *scope, tctx *transform
 	}
 }
 
-func parseUnarySign(aExpr *parser.A_expr_unary_signContext, scope *scope, tctx *transformer.Context) ir.Expr {
+func parseUnarySign(aExpr *parser.A_expr_unary_signContext, scope *transformer.Scope, tctx *transformer.Context) ir.Expr {
 	right := parseAtTimeZone(aExpr.A_expr_at_time_zone().(*parser.A_expr_at_time_zoneContext), scope, tctx)
 
 	if aExpr.MINUS() != nil {
@@ -543,15 +543,15 @@ func parseUnarySign(aExpr *parser.A_expr_unary_signContext, scope *scope, tctx *
 	return right
 }
 
-func parseAtTimeZone(aExpr *parser.A_expr_at_time_zoneContext, scope *scope, tctx *transformer.Context) ir.Expr {
+func parseAtTimeZone(aExpr *parser.A_expr_at_time_zoneContext, scope *transformer.Scope, tctx *transformer.Context) ir.Expr {
 	return parseCollate(aExpr.A_expr_collate().(*parser.A_expr_collateContext), scope, tctx)
 }
 
-func parseCollate(ctx *parser.A_expr_collateContext, scope *scope, tctx *transformer.Context) ir.Expr {
+func parseCollate(ctx *parser.A_expr_collateContext, scope *transformer.Scope, tctx *transformer.Context) ir.Expr {
 	return parseTypecast(ctx.A_expr_typecast().(*parser.A_expr_typecastContext), scope, tctx)
 }
 
-func parseTypecast(ctx *parser.A_expr_typecastContext, scope *scope, tctx *transformer.Context) ir.Expr {
+func parseTypecast(ctx *parser.A_expr_typecastContext, scope *transformer.Scope, tctx *transformer.Context) ir.Expr {
 	cCtx := ctx.C_expr()
 
 	cExpr, ok := cCtx.(*parser.C_expr_exprContext)
@@ -569,7 +569,7 @@ func parseTypecast(ctx *parser.A_expr_typecastContext, scope *scope, tctx *trans
 	return nil
 }
 
-func parseCExpr(ctx *parser.C_expr_exprContext, scope *scope, tctx *transformer.Context) ir.Expr {
+func parseCExpr(ctx *parser.C_expr_exprContext, scope *transformer.Scope, tctx *transformer.Context) ir.Expr {
 	switch {
 	case ctx.A_expr() != nil:
 		return parseExpr(ctx.A_expr().(*parser.A_exprContext), scope, tctx)
@@ -580,7 +580,7 @@ func parseCExpr(ctx *parser.C_expr_exprContext, scope *scope, tctx *transformer.
 	}
 }
 
-func parseColumnRef(ctx *parser.ColumnrefContext, scope *scope, tctx *transformer.Context) ir.Expr {
+func parseColumnRef(ctx *parser.ColumnrefContext, scope *transformer.Scope, tctx *transformer.Context) ir.Expr {
 	colid, ok := ctx.Colid().(*parser.ColidContext)
 	if !ok {
 		tctx.ErrOnToken(ctx.GetStart(), "expected colid, got %T", ctx.Colid())
@@ -592,21 +592,21 @@ func parseColumnRef(ctx *parser.ColumnrefContext, scope *scope, tctx *transforme
 	case 1:
 		return resolveUnqualifiedColumn(ctx, parts[0], scope, tctx)
 	case 2:
-		return resolveQualifiedColumn(ctx, parts[0], parts[1], scope, tctx)
+		return resolveQualifiedColumn(ctx, parts[1], parts[0], scope, tctx)
 	case 3:
-		return resolveQualifiedColumn(ctx, parts[1], parts[2], scope, tctx)
+		return resolveQualifiedColumn(ctx, parts[2], parts[1], scope, tctx)
 	default:
 		tctx.ErrOnToken(ctx.GetStart(), "invalid column ref qualified parts length: %d", len(parts))
 		return nil
 	}
 }
 
-func resolveUnqualifiedColumn(ctx *parser.ColumnrefContext, name string, scope *scope, tctx *transformer.Context) ir.Expr {
-	candidates := scope.findRelationCandidates(name)
+func resolveUnqualifiedColumn(ctx *parser.ColumnrefContext, name string, scope *transformer.Scope, tctx *transformer.Context) ir.Expr {
+	candidates := scope.FindRelationCandidatesNames(name)
 
 	switch len(candidates) {
 	case 0:
-		tctx.ErrOnToken(ctx.GetStart(), "column %q not found in any relation in current scope, available relations: %s", name, strings.Join(scope.relationNames(), ", "))
+		tctx.ErrOnToken(ctx.GetStart(), "column %q not found in any relation in current scope, available relations: %s", name, strings.Join(scope.RelationNames(), ", "))
 	case 1:
 		return resolveQualifiedColumn(ctx, candidates[0], name, scope, tctx)
 	default:
@@ -615,10 +615,10 @@ func resolveUnqualifiedColumn(ctx *parser.ColumnrefContext, name string, scope *
 	return nil
 }
 
-func resolveQualifiedColumn(ctx *parser.ColumnrefContext, relationName, name string, scope *scope, tctx *transformer.Context) ir.Expr {
-	relation, table, ok := scope.findRelation(relationName)
+func resolveQualifiedColumn(ctx *parser.ColumnrefContext, relationName, name string, scope *transformer.Scope, tctx *transformer.Context) ir.Expr {
+	relation, table, ok := scope.FindRelation(relationName)
 	if !ok {
-		tctx.ErrOnToken(ctx.GetStart(), "relation %q not found in current scope, available: %s", relationName, strings.Join(scope.relationNames(), ", "))
+		tctx.ErrOnToken(ctx.GetStart(), "relation %q does not found in current scope, available: %s", relationName, strings.Join(scope.RelationNames(), ", "))
 	}
 	if !table.HasColumn(name) {
 		tctx.ErrOnToken(ctx.GetStart(), "relation %q has no column %q, available: %s", relation.Name, name, strings.Join(table.ColumnNames(), ", "))
@@ -626,7 +626,7 @@ func resolveQualifiedColumn(ctx *parser.ColumnrefContext, relationName, name str
 	return &ir.ColumnExpr{Name: name, Relation: relation}
 }
 
-func parseDsql(dsqlExpr *parser.Dsql_paramContext, scope *scope, tctx *transformer.Context) ir.Expr {
+func parseDsql(dsqlExpr *parser.Dsql_paramContext, scope *transformer.Scope, tctx *transformer.Context) ir.Expr {
 	rawName := dsqlExpr.DSQL_PARAM().GetText()
 	paramName := strings.TrimPrefix(rawName, "$")
 

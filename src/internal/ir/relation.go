@@ -12,7 +12,7 @@ type Relation interface {
 
 type TableRelation struct {
 	Name  string
-	Alias *string
+	Alias string
 }
 
 func (TableRelation) relation() {}
@@ -21,8 +21,8 @@ func (r *TableRelation) Print(indent int) {
 	i := strings.Repeat(" ", indent)
 
 	fmt.Printf("%s- table relation: name=%s ", i, r.Name)
-	if r.Alias != nil {
-		fmt.Printf("alias=%s", *r.Alias)
+	if r.Alias != "" {
+		fmt.Printf("alias=%s", r.Alias)
 	}
 	fmt.Printf("\n")
 }

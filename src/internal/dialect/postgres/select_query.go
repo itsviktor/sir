@@ -6,7 +6,7 @@ import (
 	"github.com/itsviktor/sir/src/internal/transformer"
 )
 
-func parseSelectQuery(selectCtx *parser.Select_clauseContext, scope *scope, tctx *transformer.Context) *ir.SelectQuery {
+func parseSelectQuery(selectCtx *parser.Select_clauseContext, scope *transformer.Scope, tctx *transformer.Context) *ir.SelectQuery {
 	query := ir.NewSelectQuery()
 
 	query.Returns = parseReturns(selectCtx, scope, tctx)
@@ -15,7 +15,7 @@ func parseSelectQuery(selectCtx *parser.Select_clauseContext, scope *scope, tctx
 	return query
 }
 
-func parseTargets(selectCtx *parser.Select_clauseContext, scope *scope, tctx *transformer.Context) []ir.Relation {
+func parseTargets(selectCtx *parser.Select_clauseContext, scope *transformer.Scope, tctx *transformer.Context) []ir.Relation {
 	relations := make([]ir.Relation, 0)
 
 	fromClause, ok := transformer.FindFirst[*parser.From_listContext](selectCtx)
@@ -36,7 +36,7 @@ func parseTargets(selectCtx *parser.Select_clauseContext, scope *scope, tctx *tr
 	return relations
 }
 
-func parseReturns(selectCtx *parser.Select_clauseContext, scope *scope, tctx *transformer.Context) []ir.ReturnExpr {
+func parseReturns(selectCtx *parser.Select_clauseContext, scope *transformer.Scope, tctx *transformer.Context) []ir.ReturnExpr {
 	targetListCtx, ok := transformer.FindFirstWide[*parser.Target_listContext](selectCtx)
 	if !ok {
 		tctx.ErrOnToken(selectCtx.GetStart(), "no target list in the select query")

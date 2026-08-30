@@ -7,76 +7,170 @@ import (
 	"github.com/itsviktor/sir/src/internal/transformer"
 )
 
-func isTableRelation(ctx *parser.Table_refContext) bool {
-	_, ok := transformer.FindFirstWide[*parser.Join_qualContext](ctx)
-	return !ok
-}
+// getRelationName parses and returns information about table relation - name and alias.
+// It doesn't parse ON clause or anything else. Returns info about a left relation in a JOIN clause.
+func getRelationName(ctx *parser.Table_refContext, tctx *transformer.Context) *ir.TableRelation {
+	rel := &ir.TableRelation{}
 
-func parseRelation(ctx *parser.Table_refContext, scope *scope, transformCtx *transformer.Context) ir.Relation {
-	if isTableRelation(ctx) {
-		return parseTableRelation(ctx, scope, transformCtx)
-	} else {
-		return parseJoinRelation(ctx, scope, transformCtx)
+	// Relation name parsing.
+	first := ctx.GetChild(0)
+	if first == nil {
+		tctx.ErrOnToken(ctx.GetStart(), "invalid relation: first child is nil")
 	}
-}
 
-func parseJoinRelation(ctx *parser.Table_refContext, scope *scope, transformCtx *transformer.Context) *ir.JoinRelation {
-	rel := &ir.JoinRelation{}
-
-	// Parsing left table relation.
-	firstChild := ctx.GetChild(0)
-	if firstChild == nil {
-		transformCtx.ErrOnToken(ctx.GetStart(), "invalid join, first child is nil")
-	}
-	relExprCtx, ok := firstChild.(*parser.Relation_exprContext)
+	qualifiedName, ok := transformer.FindFirst[*parser.Qualified_nameContext](first)
 	if !ok {
-		transformCtx.ErrOnToken(ctx.GetStart(), "invalid join, wait first child to be relation expression, got %T", firstChild)
+		tctx.ErrOnToken(ctx.GetStart(), "invalid relation: first child doesn't contain qualifiedName node")
 	}
-	name, _ := parseSchemaAndName(relExprCtx, transformCtx)
 
-	left := &ir.TableRelation{
-		Name: name,
+	parts := parseQualifiedParts(qualifiedName.Colid().(*parser.ColidContext), qualifiedName.Indirection())
+	if len(parts) == 0 {
+		tctx.ErrOnToken(ctx.GetStart(), "invalid relation: qualified parts size is nil")
 	}
-	rel.Left = left
 
-	// parsing right table relation.
-	var rightTableCtx *parser.Table_refContext
-	for _, child := range ctx.GetChildren() {
-		rightTableCtx, _ = child.(*parser.Table_refContext)
-		if rightTableCtx != nil {
-			break
+	rel.Name = sanitizeIdentifier(parts[0])
+
+	// Alias parsing
+	second := ctx.GetChild(1)
+	aliasClause, ok := second.(*parser.Alias_clauseContext)
+	if ok {
+		colid := aliasClause.Colid()
+		if colid != nil {
+			rel.Alias = sanitizeIdentifier(colid.GetText())
 		}
 	}
-	if rightTableCtx == nil {
-		transformCtx.ErrOnToken(ctx.GetStart(), "invalid join, no table ref for the right table")
-	}
-
-	right := parseTableRelation(rightTableCtx, scope, transformCtx)
-	rel.Right = right
-
-	// Parsing join type.
-	joinType := ir.InnerJoin
-	joinTypeCtx, ok := transformer.FindFirstWide[*parser.Join_typeContext](ctx)
-	if ok {
-		joinType = parseJoinType(joinTypeCtx, scope, transformCtx)
-	}
-	rel.Type = joinType
-
-	// Parsing ON expression.
-	exprCtx, ok := transformer.FindFirstWide[*parser.Join_qualContext](ctx)
-	if !ok {
-		transformCtx.ErrOnToken(ctx.GetStart(), "invalid join, no join qual context")
-	}
-	aExpr, ok := transformer.FindFirst[*parser.A_exprContext](exprCtx)
-	if !ok {
-		transformCtx.ErrOnToken(ctx.GetStart(), "invalid join qual ctx, no A expression context")
-	}
-	rel.On = parseExpr(aExpr, scope, transformCtx)
 
 	return rel
 }
 
-func parseJoinType(joinTypeCtx *parser.Join_typeContext, scope *scope, transformCtx *transformer.Context) ir.JoinType {
+// parseRelation parses a table relation, including a chain of JOIN clauses.
+func parseRelation(
+	ctx *parser.Table_refContext,
+	scope *transformer.Scope,
+	tctx *transformer.Context,
+) ir.Relation {
+	children := ctx.GetChildren()
+
+	var current ir.Relation
+	current = getRelationName(ctx, tctx)
+
+	for i := 0; i < len(children); i++ {
+		if _, ok := children[i].(*parser.Join_typeContext); !ok {
+			continue
+		}
+
+		var next int
+
+		current, next = parseJoin(
+			children,
+			i,
+			current,
+			scope,
+			tctx,
+		)
+
+		i = next - 1
+	}
+
+	return current
+}
+
+// parseJoin parses a single JOIN clause and returns the resulting relation
+// and the index of the next JOIN clause.
+func parseJoin(
+	children []antlr.Tree,
+	joinIndex int,
+	left ir.Relation,
+	scope *transformer.Scope,
+	tctx *transformer.Context,
+) (ir.Relation, int) {
+	joinTypeCtx := children[joinIndex].(*parser.Join_typeContext)
+	joinType := parseJoinType(joinTypeCtx, tctx)
+
+	var (
+		right ir.Relation
+		on    ir.Expr
+	)
+
+	for i := joinIndex + 1; i < len(children); i++ {
+		switch child := children[i].(type) {
+		case *parser.Join_typeContext:
+			return buildJoin(
+				left,
+				joinType,
+				right,
+				on,
+				joinTypeCtx,
+				tctx,
+			), i
+
+		case *parser.Table_refContext:
+			if right != nil {
+				tctx.ErrOnToken(
+					child.GetStart(),
+					"invalid JOIN: multiple right relations",
+				)
+				continue
+			}
+
+			right = getRelationName(child, tctx)
+
+		case *parser.Join_qualContext:
+			if on != nil {
+				tctx.ErrOnToken(
+					child.GetStart(),
+					"invalid JOIN: multiple join qualifications",
+				)
+				continue
+			}
+
+			exprCtx, ok := transformer.FindFirst[*parser.A_exprContext](child)
+			if !ok {
+				tctx.ErrOnToken(
+					child.GetStart(),
+					"invalid JOIN qualification: A expression not found",
+				)
+				continue
+			}
+
+			on = parseExpr(exprCtx, scope, tctx)
+		}
+	}
+
+	return buildJoin(
+		left,
+		joinType,
+		right,
+		on,
+		joinTypeCtx,
+		tctx,
+	), len(children)
+}
+
+func buildJoin(
+	left ir.Relation,
+	joinType ir.JoinType,
+	right ir.Relation,
+	on ir.Expr,
+	joinTypeCtx *parser.Join_typeContext,
+	tctx *transformer.Context,
+) ir.Relation {
+	if right == nil {
+		tctx.ErrOnToken(
+			joinTypeCtx.GetStart(),
+			"invalid JOIN: right relation not found",
+		)
+	}
+
+	return &ir.JoinRelation{
+		Left:  left,
+		Type:  joinType,
+		Right: right,
+		On:    on,
+	}
+}
+
+func parseJoinType(joinTypeCtx *parser.Join_typeContext, transformCtx *transformer.Context) ir.JoinType {
 	firstChild := joinTypeCtx.GetChild(0)
 	if firstChild == nil {
 		transformCtx.ErrOnToken(joinTypeCtx.GetStart(), "invalid join type, first child is nil")
@@ -100,58 +194,5 @@ func parseJoinType(joinTypeCtx *parser.Join_typeContext, scope *scope, transform
 
 	transformCtx.ErrOnToken(joinTypeCtx.GetStart(), "invalid join type: %s", joinTypeCtx.GetText())
 
-	return ir.InnerJoin
-}
-
-func parseTableRelation(ctx *parser.Table_refContext, scope *scope, transformCtx *transformer.Context) *ir.TableRelation {
-	rel := &ir.TableRelation{}
-
-	firstChild := ctx.GetChild(0)
-	if firstChild == nil {
-		transformCtx.ErrOnToken(ctx.GetStart(), "invalid ref context, first child is nil")
-	}
-
-	relExprCtx, ok := firstChild.(*parser.Relation_exprContext)
-	if !ok {
-		transformCtx.ErrOnToken(ctx.GetStart(), "invalid ref context, wait first child to be relation expression, got %T", firstChild)
-	}
-
-	name, _ := parseSchemaAndName(relExprCtx, transformCtx)
-	rel.Name = name
-
-	aliasCtx, ok := transformer.FindFirstWide[*parser.Alias_clauseContext](ctx)
-	if ok {
-		colidCtx, ok := transformer.FindFirst[*parser.ColidContext](aliasCtx)
-		if !ok {
-			transformCtx.ErrOnToken(aliasCtx.GetStart(), "invalid alias clause, no colid context")
-		}
-
-		rel.Alias = new(unquoteIdentifier(colidCtx.GetText()))
-	}
-
-	return rel
-}
-
-func parseSchemaAndName(relExprCtx *parser.Relation_exprContext, transformCtx *transformer.Context) (string, *string) {
-	qualNameCtx, ok := relExprCtx.GetChild(0).(*parser.Qualified_nameContext)
-	if !ok {
-		transformCtx.ErrOnToken(relExprCtx.GetStart(), "expected qualified_name, got %T", relExprCtx.GetChild(0))
-	}
-
-	colid, ok := qualNameCtx.GetChild(0).(*parser.ColidContext)
-	if !ok {
-		transformCtx.ErrOnToken(qualNameCtx.GetStart(), "expected colid as first child, got %T", qualNameCtx.GetChild(0))
-	}
-
-	parts := parseQualifiedParts(colid, qualNameCtx.Indirection())
-
-	switch len(parts) {
-	case 1:
-		return parts[0], nil
-	case 2:
-		return parts[1], &parts[0]
-	default:
-		transformCtx.ErrOnToken(qualNameCtx.GetStart(), "unexpected amount of qualified name parts: %d", len(parts))
-		return "", nil
-	}
+	return 0
 }

@@ -5,7 +5,6 @@ import (
 
 	"github.com/antlr4-go/antlr/v4"
 	"github.com/itsviktor/sir/src/internal/dsql"
-	"github.com/itsviktor/sir/src/internal/ir"
 	"github.com/itsviktor/sir/src/internal/parser"
 	"github.com/itsviktor/sir/src/internal/schema"
 	"github.com/itsviktor/sir/src/internal/transformer"
@@ -16,7 +15,7 @@ type PostgresTransformer struct{}
 
 func (t PostgresTransformer) Transform(q dsql.Query, domainName string, tables map[string]*schema.Table) {
 	utils.Debugf("transforming %s query:\n%s\n\n", domainName, q.SQL)
-	transformCtx := transformer.NewTransformContext(q.File, q.StartLine)
+	tctx := transformer.NewTransformContext(q.File, q.StartLine)
 
 	input := antlr.NewInputStream(q.SQL)
 	lexer := parser.NewPostgreSQLLexer(input)
@@ -34,16 +33,16 @@ func (t PostgresTransformer) Transform(q dsql.Query, domainName string, tables m
 	tree := p.Root()
 
 	// First walk to build scopes tree.
-	var rootScope *scope
+	var rootScope *transformer.Scope
 	transformer.WalkTree(tree, func(ctx antlr.Tree) {
 		selectCtx, ok := ctx.(*parser.Select_clauseContext)
 		if ok {
-			nscope := newScope(selectCtx)
+			scope := transformer.NewScope(selectCtx)
 
 			if rootScope != nil {
-				rootScope.addChildren(selectCtx, nscope)
+				rootScope.AddChild(scope)
 			}
-			rootScope = nscope
+			rootScope = scope
 
 			return
 		}
@@ -51,17 +50,22 @@ func (t PostgresTransformer) Transform(q dsql.Query, domainName string, tables m
 		tableCtx, ok := ctx.(*parser.Table_refContext)
 		if ok {
 			if rootScope == nil {
-				transformCtx.ErrOnToken(tableCtx.GetStart(), "table reference in empty scope")
+				tctx.ErrOnToken(tableCtx.GetStart(), "table reference in nil scope")
 			}
 
-			relation := parseRelation(tableCtx, rootScope, transformCtx)
+			// Parsing relation name for the table ref context.
+			relation := getRelationName(tableCtx, tctx)
 
-			switch rel := relation.(type) {
-			case *ir.TableRelation:
-				addTableRelationToScope(tableCtx, rel, rootScope, tables, transformCtx)
-			case *ir.JoinRelation:
-				addTableRelationToScope(tableCtx, rel.Left.(*ir.TableRelation), rootScope, tables, transformCtx)
-				addTableRelationToScope(tableCtx, rel.Right.(*ir.TableRelation), rootScope, tables, transformCtx)
+			// Finding table schema for that relation.
+			table, ok := tables[relation.Name]
+			if !ok {
+				tctx.ErrOnToken(tableCtx.GetStart(), "cannot find table for the relation %q", relation.Name)
+			}
+
+			// Adding relation to the scope.
+			err := rootScope.AddRelation(relation, table)
+			if err != nil {
+				tctx.ErrOnToken(tableCtx.GetStart(), "%v", err)
 			}
 		}
 	}, func(ctx antlr.Tree) {
@@ -71,8 +75,9 @@ func (t PostgresTransformer) Transform(q dsql.Query, domainName string, tables m
 				log.Fatalf("exit from nil scope")
 			}
 
-			if rootScope.parent != nil {
-				rootScope = rootScope.parent
+			parentScope := rootScope.Parent()
+			if parentScope != nil {
+				rootScope = parentScope
 			}
 		}
 	})
@@ -80,9 +85,9 @@ func (t PostgresTransformer) Transform(q dsql.Query, domainName string, tables m
 	// Second walk to build query.
 	selectCtx, ok := transformer.FindFirstWide[*parser.Select_clauseContext](tree)
 	if !ok {
-		transformCtx.ErrOnToken(tree.GetStart(), "no select clause")
+		tctx.ErrOnToken(tree.GetStart(), "no select clause")
 	}
 
-	query := parseSelectQuery(selectCtx, rootScope, transformCtx)
+	query := parseSelectQuery(selectCtx, rootScope, tctx)
 	query.Print(0)
 }

@@ -1,4 +1,3 @@
 --> GetList many
-SELECT *, nullable_types.name
-FROM public.array_types as a_t, basic_types
-INNER JOIN enum_types as e ON e.id IN $data.field
+SELECT * FROM "public"."basic_types" u
+LEFT JOIN array_types as o ON o.id = u.field_integer;

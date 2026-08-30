@@ -1,13 +1,24 @@
 package postgres
 
 import (
+	"slices"
 	"strings"
 
 	"github.com/itsviktor/sir/src/internal/parser"
 )
 
+// parseQualifiedParts parses relations and columns names from the colid and indirection parts.
+// First part before dot always belongs to the colid context, while everything else falls
+// into the indirection context.
+//
+// Returns an array of sanitized identifiers in reversed order.
+//
+// Examples:
+//
+//	"public"."Table" -> [public, Table].
+//	"table".Column -> [table, column]
 func parseQualifiedParts(colid *parser.ColidContext, indirection parser.IIndirectionContext) []string {
-	parts := []string{unquoteIdentifier(colid.GetText())}
+	parts := []string{sanitizeIdentifier(colid.GetText())}
 
 	if indirection == nil {
 		return parts
@@ -17,14 +28,25 @@ func parseQualifiedParts(colid *parser.ColidContext, indirection parser.IIndirec
 	for _, el := range indCtx.AllIndirection_el() {
 		elCtx := el.(*parser.Indirection_elContext)
 		if attrName := elCtx.Attr_name(); attrName != nil {
-			parts = append(parts, unquoteIdentifier(attrName.GetText()))
+			parts = append(parts, sanitizeIdentifier(attrName.GetText()))
 		}
 	}
+
+	slices.Reverse(parts)
 
 	return parts
 }
 
-func unquoteIdentifier(s string) string {
+// sanitizeIdentifier removes quotes from a string identifier, such as a database
+// or alias name. PostgreSQL folds unquoted identifiers to lowercase, so
+// TableName and tablename refer to the same identifier unless quoted.
+//
+// Examples:
+//
+//	"Name"         -> Name
+//	"name""valid"  -> name"valid
+//	TableName      -> tablename
+func sanitizeIdentifier(s string) string {
 	if len(s) >= 2 && s[0] == '"' && s[len(s)-1] == '"' {
 		return strings.ReplaceAll(s[1:len(s)-1], `""`, `"`)
 	}
