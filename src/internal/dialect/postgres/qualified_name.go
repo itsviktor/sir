@@ -4,6 +4,7 @@ import (
 	"slices"
 	"strings"
 
+	"github.com/antlr4-go/antlr/v4"
 	"github.com/itsviktor/sir/src/internal/parser"
 )
 
@@ -11,12 +12,15 @@ import (
 // First part before dot always belongs to the colid context, while everything else falls
 // into the indirection context.
 //
+// Supports star identifiers.
+//
 // Returns an array of sanitized identifiers in reversed order.
 //
 // Examples:
 //
 //	"public"."Table" -> [public, Table].
 //	"table".Column -> [table, column]
+//	table.* -> [table, *]
 func parseQualifiedParts(colid *parser.ColidContext, indirection parser.IIndirectionContext) []string {
 	parts := []string{sanitizeIdentifier(colid.GetText())}
 
@@ -27,9 +31,9 @@ func parseQualifiedParts(colid *parser.ColidContext, indirection parser.IIndirec
 	indCtx := indirection.(*parser.IndirectionContext)
 	for _, el := range indCtx.AllIndirection_el() {
 		elCtx := el.(*parser.Indirection_elContext)
-		if attrName := elCtx.Attr_name(); attrName != nil {
-			parts = append(parts, sanitizeIdentifier(attrName.GetText()))
-		}
+		secondChild := elCtx.GetChild(1).(antlr.ParseTree)
+
+		parts = append(parts, sanitizeIdentifier(secondChild.GetText()))
 	}
 
 	slices.Reverse(parts)

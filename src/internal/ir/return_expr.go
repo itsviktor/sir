@@ -15,5 +15,5 @@ func (AllReturnExpr) expr() {}
 func (AllReturnExpr) returnExpr() {}
 
 func (AllReturnExpr) Print(indent int) {
-	utils.IndentPrintf(indent, "- all fields")
+	utils.IndentPrintf(indent, "- all fields\n")
 }

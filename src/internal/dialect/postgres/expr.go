@@ -606,7 +606,7 @@ func resolveUnqualifiedColumn(ctx *parser.ColumnrefContext, name string, scope *
 
 	switch len(candidates) {
 	case 0:
-		tctx.ErrOnToken(ctx.GetStart(), "column %q not found in any relation in current scope, available relations: %s", name, strings.Join(scope.RelationNames(), ", "))
+		tctx.ErrOnToken(ctx.GetStart(), "column %q does not found in any relation in the current scope, available relations: %s", name, strings.Join(scope.RelationNames(), ", "))
 	case 1:
 		return resolveQualifiedColumn(ctx, candidates[0], name, scope, tctx)
 	default:
@@ -618,11 +618,19 @@ func resolveUnqualifiedColumn(ctx *parser.ColumnrefContext, name string, scope *
 func resolveQualifiedColumn(ctx *parser.ColumnrefContext, relationName, name string, scope *transformer.Scope, tctx *transformer.Context) ir.Expr {
 	relation, table, ok := scope.FindRelation(relationName)
 	if !ok {
-		tctx.ErrOnToken(ctx.GetStart(), "relation %q does not found in current scope, available: %s", relationName, strings.Join(scope.RelationNames(), ", "))
+		tctx.ErrOnToken(ctx.GetStart(), "relation %q does not found in the current scope, available: %s", relationName, strings.Join(scope.RelationNames(), ", "))
 	}
+
+	if name == "*" {
+		return &ir.WildcardColumnExpr{
+			Relation: relation,
+		}
+	}
+
 	if !table.HasColumn(name) {
 		tctx.ErrOnToken(ctx.GetStart(), "relation %q has no column %q, available: %s", relation.Name, name, strings.Join(table.ColumnNames(), ", "))
 	}
+
 	return &ir.ColumnExpr{Name: name, Relation: relation}
 }
 

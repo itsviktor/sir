@@ -47,3 +47,17 @@ func (e *ColumnExpr) Print(indent int) {
 	e.Relation.Print(indent + 4)
 	utils.IndentPrintf(indent+2, " name: %s\n", e.Name)
 }
+
+type WildcardColumnExpr struct {
+	Relation Relation
+}
+
+func (WildcardColumnExpr) expr() {}
+
+func (WildcardColumnExpr) returnExpr() {}
+
+func (e *WildcardColumnExpr) Print(indent int) {
+	utils.IndentPrintf(indent, "- wildcard column ref:\n")
+	utils.IndentPrintf(indent+2, " relation:\n")
+	e.Relation.Print(indent + 4)
+}

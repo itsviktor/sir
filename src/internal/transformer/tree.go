@@ -63,18 +63,32 @@ func FindFirst[T antlr.Tree](node antlr.Tree) (T, bool) {
 	return zero, false
 }
 
-func FindFirstWide[T antlr.Tree](node antlr.Tree) (T, bool) {
-	queue := []antlr.Tree{node}
+// FindFirstWide searches the ANTLR tree in breadth-first order and returns the first node
+// of type T found at a depth not exceeding maxDeep. The root node has depth 0.
+func FindFirstWide[T antlr.Tree](node antlr.Tree, maxDeep int) (T, bool) {
+	type queueItem struct {
+		node  antlr.Tree
+		depth int
+	}
+
+	queue := []queueItem{{node: node, depth: 0}}
 
 	for i := 0; i < len(queue); i++ {
 		current := queue[i]
 
-		if target, ok := current.(T); ok {
+		if target, ok := current.node.(T); ok {
 			return target, true
 		}
 
-		for j := 0; j < current.GetChildCount(); j++ {
-			queue = append(queue, current.GetChild(j))
+		if current.depth >= maxDeep {
+			continue
+		}
+
+		for j := 0; j < current.node.GetChildCount(); j++ {
+			queue = append(queue, queueItem{
+				node:  current.node.GetChild(j),
+				depth: current.depth + 1,
+			})
 		}
 	}
 
