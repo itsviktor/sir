@@ -10,8 +10,8 @@ import (
 
 type PostgresInspector struct{}
 
-func (i PostgresInspector) Inspect(db *sql.DB) (map[string]schema.Table, error) {
-	tables := make(map[string]schema.Table)
+func (i PostgresInspector) Inspect(db *sql.DB) (map[string]*schema.Table, error) {
+	tables := make(map[string]*schema.Table)
 
 	err := parseEnumTypes(db)
 	if err != nil {
@@ -32,7 +32,7 @@ func (i PostgresInspector) Inspect(db *sql.DB) (map[string]schema.Table, error) 
 	defer rows.Close()
 
 	for rows.Next() {
-		var table schema.Table
+		table := &schema.Table{}
 		if err := rows.Scan(&table.Name); err != nil {
 			return tables, fmt.Errorf("scanning tables: %w", err)
 		}

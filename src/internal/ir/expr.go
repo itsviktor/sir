@@ -35,3 +35,10 @@ type ColumnExpr struct {
 }
 
 func (ColumnExpr) expr() {}
+
+func (e *ColumnExpr) Print(indent int) {
+	utils.IndentPrintf(indent, "- columnref:\n")
+	utils.IndentPrintf(indent+2, " relation:\n")
+	e.Relation.Print(indent + 4)
+	utils.IndentPrintf(indent+2, " name: %s\n", e.Name)
+}

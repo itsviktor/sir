@@ -7,13 +7,14 @@ import (
 	"github.com/itsviktor/sir/src/internal/dsql"
 	"github.com/itsviktor/sir/src/internal/ir"
 	"github.com/itsviktor/sir/src/internal/parser"
+	"github.com/itsviktor/sir/src/internal/schema"
 	"github.com/itsviktor/sir/src/internal/transformer"
 	"github.com/itsviktor/sir/src/internal/utils"
 )
 
 type PostgresTransformer struct{}
 
-func (t PostgresTransformer) Transform(q dsql.Query, domainName string) {
+func (t PostgresTransformer) Transform(q dsql.Query, domainName string, tables map[string]*schema.Table) {
 	utils.Debugf("transforming %s query:\n%s\n\n", domainName, q.SQL)
 	transformCtx := transformer.NewTransformContext(q.File, q.StartLine)
 
@@ -63,7 +64,11 @@ func (t PostgresTransformer) Transform(q dsql.Query, domainName string) {
 
 			tableRel, ok := rel.(*ir.TableRelation)
 			if ok {
-				rootScope.addRelation(tableRel)
+				table, ok := tables[tableRel.Name]
+				if !ok {
+					transformCtx.ErrOnToken(tableCtx.GetStart(), "cannot find table for the relation \"%s\"", tableRel.Name)
+				}
+				rootScope.addRelation(tableRel, table)
 
 				if tableRel.Alias != nil {
 					alias := *tableRel.Alias
@@ -71,7 +76,7 @@ func (t PostgresTransformer) Transform(q dsql.Query, domainName string) {
 						transformCtx.ErrOnToken(tableCtx.GetStart(), "duplicate alias %s", alias)
 					}
 
-					rootScope.addAlias(alias, tableRel)
+					rootScope.addAlias(alias, tableRel, table)
 				}
 			}
 		}

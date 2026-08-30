@@ -1,16 +1,17 @@
 package postgres
 
 import (
-	"fmt"
+	"strings"
 
 	"github.com/antlr4-go/antlr/v4"
 	"github.com/itsviktor/sir/src/internal/ir"
 	"github.com/itsviktor/sir/src/internal/parser"
 	"github.com/itsviktor/sir/src/internal/transformer"
+	"github.com/itsviktor/sir/src/internal/utils"
 )
 
 func parseExpr(aExpr *parser.A_exprContext, scope *scope, tctx *transformer.Context) ir.Expr {
-	fmt.Printf("PARSE EXPRESSION: %s\n", aExpr.GetText())
+	utils.Debugf("PARSE EXPRESSION: %s\n", aExpr.GetText())
 
 	return parseQual(aExpr.A_expr_qual().(*parser.A_expr_qualContext), scope, tctx)
 }
@@ -551,7 +552,55 @@ func parseCExpr(ctx *parser.C_expr_exprContext, scope *scope, tctx *transformer.
 	switch {
 	case ctx.A_expr() != nil:
 		return parseExpr(ctx.A_expr().(*parser.A_exprContext), scope, tctx)
+	case ctx.Columnref() != nil:
+		return parseColumnRef(ctx.Columnref().(*parser.ColumnrefContext), scope, tctx)
 	default:
 		return &ir.LiteralExpr{Value: ctx.GetText()}
 	}
+}
+
+func parseColumnRef(ctx *parser.ColumnrefContext, scope *scope, tctx *transformer.Context) ir.Expr {
+	colid, ok := ctx.Colid().(*parser.ColidContext)
+	if !ok {
+		tctx.ErrOnToken(ctx.GetStart(), "expected colid, got %T", ctx.Colid())
+	}
+
+	parts := parseQualifiedParts(colid, ctx.Indirection())
+
+	switch len(parts) {
+	case 1:
+		return resolveUnqualifiedColumn(ctx, parts[0], scope, tctx)
+	case 2:
+		return resolveQualifiedColumn(ctx, parts[0], parts[1], scope, tctx)
+	case 3:
+		return resolveQualifiedColumn(ctx, parts[1], parts[2], scope, tctx)
+	default:
+		tctx.ErrOnToken(ctx.GetStart(), "invalid column ref qualified parts length: %d", len(parts))
+		return nil
+	}
+}
+
+func resolveUnqualifiedColumn(ctx *parser.ColumnrefContext, name string, scope *scope, tctx *transformer.Context) ir.Expr {
+	candidates := scope.findRelationCandidates(name)
+
+	switch len(candidates) {
+	case 0:
+		tctx.ErrOnToken(ctx.GetStart(), "column %q not found in any relation in current scope, available relations: %s", name, strings.Join(scope.relationNames(), ", "))
+	case 1:
+		return resolveQualifiedColumn(ctx, candidates[0], name, scope, tctx)
+	default:
+		tctx.ErrOnToken(ctx.GetStart(), "column reference %q is ambiguous, found in multiple relations: %s", name, strings.Join(candidates, ", "))
+	}
+	return nil
+}
+
+func resolveQualifiedColumn(ctx *parser.ColumnrefContext, relationName, name string, scope *scope, tctx *transformer.Context) ir.Expr {
+	relation, table, ok := scope.findRelation(relationName)
+	if !ok {
+		tctx.ErrOnToken(ctx.GetStart(), "relation %q not found in current scope, available: %s", relationName, strings.Join(scope.relationNames(), ", "))
+	}
+	if !table.HasColumn(name) {
+		tctx.ErrOnToken(ctx.GetStart(), "relation %q has no column %q, available: %s", relation.Name, name, strings.Join(table.ColumnNames(), ", "))
+	}
+	return &ir.ColumnExpr{Name: name, Relation: relation}
 }

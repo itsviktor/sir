@@ -1,4 +1,4 @@
 --> GetList many
 SELECT *
-FROM public.users as u, orders
-INNER JOIN products as p ON p.age IN (SELECT id FROM users);
+FROM public.array_types as u, orders
+INNER JOIN basic_types as b ON b.field_text = 'test' OR b.field_integer = 3 AND b.field_smallint = 10;

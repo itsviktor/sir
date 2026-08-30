@@ -1,8 +1,22 @@
 package schema
 
+import (
+	"maps"
+	"slices"
+)
+
 type Table struct {
 	Name    string
 	Columns map[string]Column
+}
+
+func (t Table) HasColumn(name string) bool {
+	_, ok := t.Columns[name]
+	return ok
+}
+
+func (t Table) ColumnNames() []string {
+	return slices.Collect(maps.Keys(t.Columns))
 }
 
 type Column struct {

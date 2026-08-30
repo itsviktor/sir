@@ -1,8 +1,6 @@
 package postgres
 
 import (
-	"strings"
-
 	"github.com/antlr4-go/antlr/v4"
 	"github.com/itsviktor/sir/src/internal/ir"
 	"github.com/itsviktor/sir/src/internal/parser"
@@ -129,62 +127,25 @@ func parseTableRelation(ctx *parser.Table_refContext, scope *scope, transformCtx
 }
 
 func parseSchemaAndName(relExprCtx *parser.Relation_exprContext, transformCtx *transformer.Context) (string, *string) {
-	firstChild := relExprCtx.GetChild(0)
-	if firstChild == nil {
-		transformCtx.ErrOnToken(relExprCtx.GetStart(), "invalid relation expression context, first child is nil")
-	}
-
-	qualNameCtx, ok := firstChild.(*parser.Qualified_nameContext)
+	qualNameCtx, ok := relExprCtx.GetChild(0).(*parser.Qualified_nameContext)
 	if !ok {
-		transformCtx.ErrOnToken(relExprCtx.GetStart(), "invalid relation expression context, wait for the first child to be qualified name context, got %T", firstChild)
+		transformCtx.ErrOnToken(relExprCtx.GetStart(), "expected qualified_name, got %T", relExprCtx.GetChild(0))
 	}
 
-	switch qualNameCtx.GetChildCount() {
+	colid, ok := qualNameCtx.GetChild(0).(*parser.ColidContext)
+	if !ok {
+		transformCtx.ErrOnToken(qualNameCtx.GetStart(), "expected colid as first child, got %T", qualNameCtx.GetChild(0))
+	}
+
+	parts := parseQualifiedParts(colid, qualNameCtx.Indirection())
+
+	switch len(parts) {
 	case 1:
-		nameCtx := qualNameCtx.GetChild(0)
-		if nameCtx == nil {
-			transformCtx.ErrOnToken(qualNameCtx.GetStart(), "invalid qualified name context, no first child")
-		}
-
-		colidCtx, ok := nameCtx.(*parser.ColidContext)
-		if !ok {
-			transformCtx.ErrOnToken(qualNameCtx.GetStart(), "invalid qualified name context, wait first children to be colid context, got %T", nameCtx)
-		}
-
-		return unquoteIdentifier(colidCtx.GetText()), nil
+		return parts[0], nil
 	case 2:
-		nameCtx := qualNameCtx.GetChild(0)
-		if nameCtx == nil {
-			transformCtx.ErrOnToken(qualNameCtx.GetStart(), "invalid qualified name context, no first child")
-		}
-
-		colidCtx, ok := nameCtx.(*parser.ColidContext)
-		if !ok {
-			transformCtx.ErrOnToken(qualNameCtx.GetStart(), "invalid qualified name context, wait first children to be colid context, got %T", nameCtx)
-		}
-
-		schemaCtx := qualNameCtx.GetChild(1)
-		if schemaCtx == nil {
-			transformCtx.ErrOnToken(qualNameCtx.GetStart(), "invalid qualified name context, no second child")
-		}
-
-		colLabelCtx, ok := transformer.FindFirst[*parser.ColLabelContext](schemaCtx)
-		if !ok {
-			transformCtx.ErrOnToken(qualNameCtx.GetStart(), "invalid schema name, no col label context")
-		}
-
-		return unquoteIdentifier(colLabelCtx.GetText()), new(unquoteIdentifier(colidCtx.GetText()))
+		return parts[1], &parts[0]
+	default:
+		transformCtx.ErrOnToken(qualNameCtx.GetStart(), "unexpected amount of qualified name parts: %d", len(parts))
+		return "", nil
 	}
-
-	transformCtx.ErrOnToken(qualNameCtx.GetStart(), "invalid amount of qualified name context children")
-
-	return "", nil
-}
-
-func unquoteIdentifier(s string) string {
-	if len(s) >= 2 && s[0] == '"' && s[len(s)-1] == '"' {
-		return strings.ReplaceAll(s[1:len(s)-1], `""`, `"`)
-	}
-
-	return strings.ToLower(s)
 }
