@@ -12,6 +12,7 @@ type Query interface {
 
 type SelectQuery struct {
 	Targets []Relation
+	Returns []ReturnExpr
 
 	Where  Expr
 	Offset Expr
@@ -35,8 +36,4 @@ func (s *SelectQuery) Print(indent int) {
 		}
 	}
 
-}
-
-func (s *SelectQuery) AddTarget(target Relation) {
-	s.Targets = append(s.Targets, target)
 }

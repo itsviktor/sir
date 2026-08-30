@@ -54,28 +54,14 @@ func (t PostgresTransformer) Transform(q dsql.Query, domainName string, tables m
 				transformCtx.ErrOnToken(tableCtx.GetStart(), "table reference in empty scope")
 			}
 
-			if !isTableRelation(tableCtx) {
-				return
-			}
+			relation := parseRelation(tableCtx, rootScope, transformCtx)
 
-			rel := parseRelation(tableCtx, rootScope, transformCtx)
-
-			tableRel, ok := rel.(*ir.TableRelation)
-			if ok {
-				table, ok := tables[tableRel.Name]
-				if !ok {
-					transformCtx.ErrOnToken(tableCtx.GetStart(), "cannot find table for the relation \"%s\"", tableRel.Name)
-				}
-				rootScope.addRelation(tableRel, table)
-
-				if tableRel.Alias != nil {
-					alias := *tableRel.Alias
-					if rootScope.hasAlias(alias) {
-						transformCtx.ErrOnToken(tableCtx.GetStart(), "duplicate alias %s", alias)
-					}
-
-					rootScope.addAlias(alias, tableRel, table)
-				}
+			switch rel := relation.(type) {
+			case *ir.TableRelation:
+				addTableRelationToScope(tableCtx, rel, rootScope, tables, transformCtx)
+			case *ir.JoinRelation:
+				addTableRelationToScope(tableCtx, rel.Left.(*ir.TableRelation), rootScope, tables, transformCtx)
+				addTableRelationToScope(tableCtx, rel.Right.(*ir.TableRelation), rootScope, tables, transformCtx)
 			}
 		}
 	}, func(ctx antlr.Tree) {

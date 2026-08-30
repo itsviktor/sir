@@ -61,7 +61,7 @@ func main() {
 		log.Fatalf("loading query files: %v", err)
 	}
 
-	// Creating ir transformer.
+	// Creating IR transformer.
 	var t transformer.Transformer
 	switch dialect {
 	case database.Postgres:
@@ -76,6 +76,4 @@ func main() {
 			t.Transform(query, domain.Name, tables)
 		}
 	}
-
-	_ = tables
 }

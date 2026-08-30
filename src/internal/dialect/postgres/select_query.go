@@ -9,6 +9,7 @@ import (
 func parseSelectQuery(selectCtx *parser.Select_clauseContext, scope *scope, tctx *transformer.Context) *ir.SelectQuery {
 	query := ir.NewSelectQuery()
 
+	query.Returns = parseReturns(selectCtx, scope, tctx)
 	query.Targets = parseTargets(selectCtx, scope, tctx)
 
 	return query
@@ -33,4 +34,33 @@ func parseTargets(selectCtx *parser.Select_clauseContext, scope *scope, tctx *tr
 	}
 
 	return relations
+}
+
+func parseReturns(selectCtx *parser.Select_clauseContext, scope *scope, tctx *transformer.Context) []ir.ReturnExpr {
+	targetListCtx, ok := transformer.FindFirstWide[*parser.Target_listContext](selectCtx)
+	if !ok {
+		tctx.ErrOnToken(selectCtx.GetStart(), "no target list in the select query")
+	}
+
+	var targets []ir.ReturnExpr
+	for _, child := range targetListCtx.GetChildren() {
+		_, ok := child.(*parser.Target_starContext)
+		if ok {
+			targets = append(targets, &ir.AllReturnExpr{})
+		}
+
+		targetLabel, ok := child.(*parser.Target_labelContext)
+		if ok {
+			aExpr := targetLabel.A_expr()
+			expr := parseExpr(aExpr.(*parser.A_exprContext), scope, tctx)
+
+			columnRefExpr, ok := expr.(*ir.ColumnExpr)
+			if !ok {
+				tctx.ErrOnToken(aExpr.GetStart(), "invalid SELECT clause: wait for ColumnRef, got %T", expr)
+			}
+			targets = append(targets, columnRefExpr)
+		}
+	}
+
+	return targets
 }

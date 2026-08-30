@@ -1,9 +1,13 @@
 package postgres
 
 import (
+	"fmt"
+
 	"github.com/antlr4-go/antlr/v4"
 	"github.com/itsviktor/sir/src/internal/ir"
+	"github.com/itsviktor/sir/src/internal/parser"
 	"github.com/itsviktor/sir/src/internal/schema"
+	"github.com/itsviktor/sir/src/internal/transformer"
 )
 
 type tableRelation struct {
@@ -113,5 +117,24 @@ func (s *scope) addAlias(alias string, relation *ir.TableRelation, table *schema
 	s.aliases[alias] = &tableRelation{
 		relation,
 		table,
+	}
+}
+
+func addTableRelationToScope(tableCtx *parser.Table_refContext, rel *ir.TableRelation, scope *scope, tables map[string]*schema.Table, tctx *transformer.Context) {
+	table, ok := tables[rel.Name]
+	if !ok {
+		tctx.ErrOnToken(tableCtx.GetStart(), "cannot find table for the relation \"%s\"", rel.Name)
+	}
+	scope.addRelation(rel, table)
+
+	fmt.Printf("scope add relation: %s\n", rel.Name)
+
+	if rel.Alias != nil {
+		alias := *rel.Alias
+		if scope.hasAlias(alias) {
+			tctx.ErrOnToken(tableCtx.GetStart(), "duplicate alias %s", alias)
+		}
+
+		scope.addAlias(alias, rel, table)
 	}
 }

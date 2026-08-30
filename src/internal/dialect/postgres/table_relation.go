@@ -40,8 +40,14 @@ func parseJoinRelation(ctx *parser.Table_refContext, scope *scope, transformCtx 
 	rel.Left = left
 
 	// parsing right table relation.
-	rightTableCtx, ok := transformer.FindFirstWide[*parser.Table_refContext](ctx)
-	if !ok {
+	var rightTableCtx *parser.Table_refContext
+	for _, child := range ctx.GetChildren() {
+		rightTableCtx, _ = child.(*parser.Table_refContext)
+		if rightTableCtx != nil {
+			break
+		}
+	}
+	if rightTableCtx == nil {
 		transformCtx.ErrOnToken(ctx.GetStart(), "invalid join, no table ref for the right table")
 	}
 
