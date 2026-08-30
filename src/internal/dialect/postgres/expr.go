@@ -188,6 +188,16 @@ func parseIn(
 				Query: subquery,
 			},
 		}
+	case *parser.In_expr_dsqlContext:
+		expr := parseDsql(rightNode.Dsql_param().(*parser.Dsql_paramContext), scope, tctx)
+
+		return &ir.InExpr{
+			Left: left,
+			Not:  isNot,
+			Right: ir.InDsql{
+				Expr: expr,
+			},
+		}
 	}
 
 	return left
@@ -551,7 +561,7 @@ func parseTypecast(ctx *parser.A_expr_typecastContext, scope *scope, tctx *trans
 
 	dsqlExpr, ok := cCtx.(*parser.C_expr_dsqlparamContext)
 	if ok {
-		return parseDsql(dsqlExpr, scope, tctx)
+		return parseDsql(dsqlExpr.Dsql_param().(*parser.Dsql_paramContext), scope, tctx)
 	}
 
 	tctx.ErrOnToken(ctx.GetStart(), "unknown c expression type %T", cCtx)
@@ -616,17 +626,12 @@ func resolveQualifiedColumn(ctx *parser.ColumnrefContext, relationName, name str
 	return &ir.ColumnExpr{Name: name, Relation: relation}
 }
 
-func parseDsql(dsqlExpr *parser.C_expr_dsqlparamContext, scope *scope, tctx *transformer.Context) ir.Expr {
-	paramCtx, ok := dsqlExpr.Dsql_param().(*parser.Dsql_paramContext)
-	if !ok {
-		tctx.ErrOnToken(dsqlExpr.GetStart(), "expected dsql_param, got %T", dsqlExpr.Dsql_param())
-	}
-
-	rawName := paramCtx.DSQL_PARAM().GetText()
+func parseDsql(dsqlExpr *parser.Dsql_paramContext, scope *scope, tctx *transformer.Context) ir.Expr {
+	rawName := dsqlExpr.DSQL_PARAM().GetText()
 	paramName := strings.TrimPrefix(rawName, "$")
 
 	var field *string
-	if attrName := paramCtx.Attr_name(); attrName != nil {
+	if attrName := dsqlExpr.Attr_name(); attrName != nil {
 		f := attrName.GetText()
 		field = &f
 	}

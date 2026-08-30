@@ -1984,6 +1984,9 @@ type PostgreSQLParserVisitor interface {
 	// Visit a parse tree produced by PostgreSQLParser#in_expr_list.
 	VisitIn_expr_list(ctx *In_expr_listContext) interface{}
 
+	// Visit a parse tree produced by PostgreSQLParser#in_expr_dsql.
+	VisitIn_expr_dsql(ctx *In_expr_dsqlContext) interface{}
+
 	// Visit a parse tree produced by PostgreSQLParser#case_expr.
 	VisitCase_expr(ctx *Case_exprContext) interface{}
 

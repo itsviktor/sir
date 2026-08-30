@@ -2643,6 +2643,10 @@ func (v *BasePostgreSQLParserVisitor) VisitIn_expr_list(ctx *In_expr_listContext
 	return v.VisitChildren(ctx)
 }
 
+func (v *BasePostgreSQLParserVisitor) VisitIn_expr_dsql(ctx *In_expr_dsqlContext) interface{} {
+	return v.VisitChildren(ctx)
+}
+
 func (v *BasePostgreSQLParserVisitor) VisitCase_expr(ctx *Case_exprContext) interface{} {
 	return v.VisitChildren(ctx)
 }

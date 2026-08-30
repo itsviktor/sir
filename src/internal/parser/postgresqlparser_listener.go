@@ -1984,6 +1984,9 @@ type PostgreSQLParserListener interface {
 	// EnterIn_expr_list is called when entering the in_expr_list production.
 	EnterIn_expr_list(c *In_expr_listContext)
 
+	// EnterIn_expr_dsql is called when entering the in_expr_dsql production.
+	EnterIn_expr_dsql(c *In_expr_dsqlContext)
+
 	// EnterCase_expr is called when entering the case_expr production.
 	EnterCase_expr(c *Case_exprContext)
 
@@ -4161,6 +4164,9 @@ type PostgreSQLParserListener interface {
 
 	// ExitIn_expr_list is called when exiting the in_expr_list production.
 	ExitIn_expr_list(c *In_expr_listContext)
+
+	// ExitIn_expr_dsql is called when exiting the in_expr_dsql production.
+	ExitIn_expr_dsql(c *In_expr_dsqlContext)
 
 	// ExitCase_expr is called when exiting the case_expr production.
 	ExitCase_expr(c *Case_exprContext)

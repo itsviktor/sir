@@ -4142,6 +4142,12 @@ func (s *BasePostgreSQLParserListener) EnterIn_expr_list(ctx *In_expr_listContex
 // ExitIn_expr_list is called when production in_expr_list is exited.
 func (s *BasePostgreSQLParserListener) ExitIn_expr_list(ctx *In_expr_listContext) {}
 
+// EnterIn_expr_dsql is called when production in_expr_dsql is entered.
+func (s *BasePostgreSQLParserListener) EnterIn_expr_dsql(ctx *In_expr_dsqlContext) {}
+
+// ExitIn_expr_dsql is called when production in_expr_dsql is exited.
+func (s *BasePostgreSQLParserListener) ExitIn_expr_dsql(ctx *In_expr_dsqlContext) {}
+
 // EnterCase_expr is called when production case_expr is entered.
 func (s *BasePostgreSQLParserListener) EnterCase_expr(ctx *Case_exprContext) {}
 
