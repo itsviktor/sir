@@ -1,4 +1,4 @@
 --> GetList many
 SELECT *
 FROM public.users as u, orders
-INNER JOIN products as p ON u.name == "Skotina";
+INNER JOIN products as p ON p.age IN (SELECT id FROM users);

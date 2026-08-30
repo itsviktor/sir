@@ -34,23 +34,20 @@ func (t PostgresTransformer) Transform(q dsql.Query, domainName string) {
 
 	// First walk to build scopes tree.
 	var rootScope *scope
-	nodeToScope := map[antlr.Tree]*scope{}
 	transformer.WalkTree(tree, func(ctx antlr.Tree) {
 		selectCtx, ok := ctx.(*parser.Select_clauseContext)
 		if ok {
 			nscope := newScope(selectCtx)
 
-			if rootScope == nil {
-				rootScope = nscope
-			} else {
-				rootScope.add(nscope)
-				rootScope = nscope
+			if rootScope != nil {
+				rootScope.addChildren(selectCtx, nscope)
 			}
-
-			nodeToScope[ctx] = rootScope
+			rootScope = nscope
 
 			return
 		}
+
+		_ = transformCtx
 
 		tableCtx, ok := ctx.(*parser.Table_refContext)
 		if ok {
@@ -58,18 +55,23 @@ func (t PostgresTransformer) Transform(q dsql.Query, domainName string) {
 				transformCtx.ErrOnToken(tableCtx.GetStart(), "table reference in empty scope")
 			}
 
+			if !isTableRelation(tableCtx) {
+				return
+			}
+
 			rel := parseRelation(tableCtx, rootScope, transformCtx)
 
 			tableRel, ok := rel.(*ir.TableRelation)
 			if ok {
-				rootScope.relations[tableRel.Name] = tableRel
+				rootScope.addRelation(tableRel)
+
 				if tableRel.Alias != nil {
 					alias := *tableRel.Alias
 					if rootScope.hasAlias(alias) {
 						transformCtx.ErrOnToken(tableCtx.GetStart(), "duplicate alias %s", alias)
 					}
 
-					rootScope.aliases[alias] = tableRel
+					rootScope.addAlias(alias, tableRel)
 				}
 			}
 		}
@@ -87,18 +89,11 @@ func (t PostgresTransformer) Transform(q dsql.Query, domainName string) {
 	})
 
 	// Second walk to build query.
-	var query ir.Query
-	transformer.WalkTree(tree, func(rawCtx antlr.Tree) {
-		switch ctx := rawCtx.(type) {
-		case *parser.Select_clauseContext:
-			scope, ok := nodeToScope[ctx]
-			if !ok {
-				transformCtx.ErrOnToken(ctx.GetStart(), "select clause inside empty scope")
-			}
+	selectCtx, ok := transformer.FindFirstWide[*parser.Select_clauseContext](tree)
+	if !ok {
+		transformCtx.ErrOnToken(tree.GetStart(), "no select clause")
+	}
 
-			query = parseSelectQuery(ctx, scope, transformCtx)
-		}
-	}, func(ctx antlr.Tree) {})
-
-	query.Print()
+	query := parseSelectQuery(selectCtx, rootScope, transformCtx)
+	query.Print(0)
 }

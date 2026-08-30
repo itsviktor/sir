@@ -9,12 +9,16 @@ import (
 	"github.com/itsviktor/sir/src/internal/transformer"
 )
 
-func parseRelation(ctx *parser.Table_refContext, scope *scope, transformCtx *transformer.Context) ir.Relation {
+func isTableRelation(ctx *parser.Table_refContext) bool {
 	_, ok := transformer.FindFirstWide[*parser.Join_qualContext](ctx)
-	if ok {
-		return parseJoinRelation(ctx, scope, transformCtx)
-	} else {
+	return !ok
+}
+
+func parseRelation(ctx *parser.Table_refContext, scope *scope, transformCtx *transformer.Context) ir.Relation {
+	if isTableRelation(ctx) {
 		return parseTableRelation(ctx, scope, transformCtx)
+	} else {
+		return parseJoinRelation(ctx, scope, transformCtx)
 	}
 }
 

@@ -1,10 +1,12 @@
 package ir
 
-import "fmt"
+import (
+	"github.com/itsviktor/sir/src/internal/utils"
+)
 
 type Query interface {
 	query()
-	Print()
+	Print(indent int)
 	AddTarget(target Relation)
 }
 
@@ -24,12 +26,12 @@ func NewSelectQuery() *SelectQuery {
 
 func (SelectQuery) query() {}
 
-func (s *SelectQuery) Print() {
-	fmt.Printf("SELECT QUERY\n")
+func (s *SelectQuery) Print(indent int) {
+	utils.IndentPrintf(indent, "SELECT QUERY\n")
 	if len(s.Targets) > 0 {
-		fmt.Printf("FROM:\n")
+		utils.IndentPrintf(indent, "FROM:\n")
 		for _, target := range s.Targets {
-			target.Print(4)
+			target.Print(indent + 2)
 		}
 	}
 

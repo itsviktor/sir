@@ -2,19 +2,19 @@ package ir
 
 import "github.com/itsviktor/sir/src/internal/utils"
 
-type LogicalExpr struct {
+type IsDistinctExpr struct {
 	Left  Expr
-	Op    Op
 	Right Expr
+	Not   bool
 }
 
-func (LogicalExpr) expr() {}
+func (IsDistinctExpr) expr() {}
 
-func (e *LogicalExpr) Print(indent int) {
-	if e.Op.Type == And {
-		utils.IndentPrintf(indent, "- AND expr:\n")
+func (e *IsDistinctExpr) Print(indent int) {
+	if e.Not {
+		utils.IndentPrintf(indent, "- is not distinct expr:\n")
 	} else {
-		utils.IndentPrintf(indent, "- OR op:\n")
+		utils.IndentPrintf(indent, "- is distinct expr:\n")
 	}
 
 	utils.IndentPrintf(indent+2, " left:\n")
