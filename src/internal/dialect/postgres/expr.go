@@ -7,12 +7,9 @@ import (
 	"github.com/itsviktor/sir/src/internal/ir"
 	"github.com/itsviktor/sir/src/internal/parser"
 	"github.com/itsviktor/sir/src/internal/transformer"
-	"github.com/itsviktor/sir/src/internal/utils"
 )
 
 func parseExpr(aExpr *parser.A_exprContext, scope *scope, tctx *transformer.Context) ir.Expr {
-	utils.Debugf("PARSE EXPRESSION: %s\n", aExpr.GetText())
-
 	return parseQual(aExpr.A_expr_qual().(*parser.A_expr_qualContext), scope, tctx)
 }
 
@@ -545,7 +542,21 @@ func parseCollate(ctx *parser.A_expr_collateContext, scope *scope, tctx *transfo
 }
 
 func parseTypecast(ctx *parser.A_expr_typecastContext, scope *scope, tctx *transformer.Context) ir.Expr {
-	return parseCExpr(ctx.C_expr().(*parser.C_expr_exprContext), scope, tctx)
+	cCtx := ctx.C_expr()
+
+	cExpr, ok := cCtx.(*parser.C_expr_exprContext)
+	if ok {
+		return parseCExpr(cExpr, scope, tctx)
+	}
+
+	dsqlExpr, ok := cCtx.(*parser.C_expr_dsqlparamContext)
+	if ok {
+		return parseDsql(dsqlExpr, scope, tctx)
+	}
+
+	tctx.ErrOnToken(ctx.GetStart(), "unknown c expression type %T", cCtx)
+
+	return nil
 }
 
 func parseCExpr(ctx *parser.C_expr_exprContext, scope *scope, tctx *transformer.Context) ir.Expr {
@@ -603,4 +614,25 @@ func resolveQualifiedColumn(ctx *parser.ColumnrefContext, relationName, name str
 		tctx.ErrOnToken(ctx.GetStart(), "relation %q has no column %q, available: %s", relation.Name, name, strings.Join(table.ColumnNames(), ", "))
 	}
 	return &ir.ColumnExpr{Name: name, Relation: relation}
+}
+
+func parseDsql(dsqlExpr *parser.C_expr_dsqlparamContext, scope *scope, tctx *transformer.Context) ir.Expr {
+	paramCtx, ok := dsqlExpr.Dsql_param().(*parser.Dsql_paramContext)
+	if !ok {
+		tctx.ErrOnToken(dsqlExpr.GetStart(), "expected dsql_param, got %T", dsqlExpr.Dsql_param())
+	}
+
+	rawName := paramCtx.DSQL_PARAM().GetText()
+	paramName := strings.TrimPrefix(rawName, "$")
+
+	var field *string
+	if attrName := paramCtx.Attr_name(); attrName != nil {
+		f := attrName.GetText()
+		field = &f
+	}
+
+	return &ir.DsqlExpr{
+		Name:  paramName,
+		Field: field,
+	}
 }

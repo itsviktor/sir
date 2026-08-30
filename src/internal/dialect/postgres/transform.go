@@ -48,8 +48,6 @@ func (t PostgresTransformer) Transform(q dsql.Query, domainName string, tables m
 			return
 		}
 
-		_ = transformCtx
-
 		tableCtx, ok := ctx.(*parser.Table_refContext)
 		if ok {
 			if rootScope == nil {

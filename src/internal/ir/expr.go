@@ -17,17 +17,20 @@ func (e *LiteralExpr) Print(indent int) {
 	utils.IndentPrintf(indent, "- literal: %s\n", e.Value)
 }
 
-type SqlExpr struct {
-	Sql string
-}
-
-func (SqlExpr) expr() {}
-
 type DsqlExpr struct {
-	Path []string
+	Name  string
+	Field *string
 }
 
 func (DsqlExpr) expr() {}
+
+func (e *DsqlExpr) Print(indent int) {
+	utils.IndentPrintf(indent, "- DSQL param:\n")
+	utils.IndentPrintf(indent+2, " name: %s\n", e.Name)
+	if e.Field != nil {
+		utils.IndentPrintf(indent+2, " field: %s\n", *e.Field)
+	}
+}
 
 type ColumnExpr struct {
 	Name     string

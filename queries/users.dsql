@@ -1,4 +1,4 @@
 --> GetList many
 SELECT *
 FROM public.array_types as u, orders
-INNER JOIN basic_types as b ON b.field_text = 'test' OR b.field_integer = 3 AND b.field_smallint = 10;
+INNER JOIN basic_types as b ON b.field_integer = $data.field;
