@@ -7,7 +7,6 @@ import (
 type Query interface {
 	query()
 	Print(indent int)
-	AddTarget(target Relation)
 }
 
 // Internal Representation for the SELECT query.
@@ -19,6 +18,8 @@ type SelectQuery struct {
 	Where  Expr
 	Offset Expr
 	Limit  Expr
+
+	OrderBy []*OrderByExpr
 }
 
 // Creates new Internal Representation for the SELECT query.
@@ -26,6 +27,7 @@ func NewSelectQuery() *SelectQuery {
 	return &SelectQuery{
 		Targets: make([]Relation, 0),
 		Returns: make([]ReturnExpr, 0),
+		OrderBy: make([]*OrderByExpr, 0),
 	}
 }
 
@@ -51,5 +53,22 @@ func (s *SelectQuery) Print(indent int) {
 	if s.Where != nil {
 		utils.IndentPrintf(indent, "WHERE:\n")
 		s.Where.Print(indent + 2)
+	}
+
+	if len(s.OrderBy) > 0 {
+		utils.IndentPrintf(indent, "ORDER BY:\n")
+		for _, item := range s.OrderBy {
+			item.Print(indent + 2)
+		}
+	}
+
+	if s.Offset != nil {
+		utils.IndentPrintf(indent, "OFFSET:\n")
+		s.Offset.Print(indent + 2)
+	}
+
+	if s.Limit != nil {
+		utils.IndentPrintf(indent, "LIMIT:\n")
+		s.Limit.Print(indent + 2)
 	}
 }

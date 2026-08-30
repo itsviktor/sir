@@ -5,6 +5,7 @@ import (
 
 	"github.com/antlr4-go/antlr/v4"
 	"github.com/itsviktor/sir/src/internal/dsql"
+	"github.com/itsviktor/sir/src/internal/ir"
 	"github.com/itsviktor/sir/src/internal/parser"
 	"github.com/itsviktor/sir/src/internal/schema"
 	"github.com/itsviktor/sir/src/internal/transformer"
@@ -13,7 +14,7 @@ import (
 
 type PostgresTransformer struct{}
 
-func (t PostgresTransformer) Transform(q dsql.Query, domainName string, tables map[string]*schema.Table) {
+func (t PostgresTransformer) Transform(q dsql.Query, domainName string, tables map[string]*schema.Table) ir.Query {
 	utils.Debugf("transforming %s query:\n%s\n\n", domainName, q.SQL)
 	tctx := transformer.NewTransformContext(q.File, q.StartLine)
 
@@ -35,7 +36,7 @@ func (t PostgresTransformer) Transform(q dsql.Query, domainName string, tables m
 	// First walk to build scopes tree.
 	var rootScope *transformer.Scope
 	transformer.WalkTree(tree, func(ctx antlr.Tree) {
-		selectCtx, ok := ctx.(*parser.Select_clauseContext)
+		selectCtx, ok := ctx.(*parser.Select_no_parensContext)
 		if ok {
 			scope := transformer.NewScope(selectCtx)
 
@@ -69,7 +70,7 @@ func (t PostgresTransformer) Transform(q dsql.Query, domainName string, tables m
 			}
 		}
 	}, func(ctx antlr.Tree) {
-		_, ok := ctx.(*parser.Select_clauseContext)
+		_, ok := ctx.(*parser.Select_no_parensContext)
 		if ok {
 			if rootScope == nil {
 				log.Fatalf("exit from nil scope")
@@ -82,12 +83,13 @@ func (t PostgresTransformer) Transform(q dsql.Query, domainName string, tables m
 		}
 	})
 
-	// Second walk to build query.
-	selectCtx, ok := transformer.FindFirstWide[*parser.Select_clauseContext](tree)
+	// Building query
+	selectCtx, ok := transformer.FindFirstWide[*parser.Select_no_parensContext](tree, 100)
 	if !ok {
 		tctx.ErrOnToken(tree.GetStart(), "no select clause")
 	}
 
 	query := parseSelectQuery(selectCtx, rootScope, tctx)
-	query.Print(0)
+
+	return query
 }

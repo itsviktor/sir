@@ -173,13 +173,13 @@ func parseIn(
 			},
 		}
 	case *parser.In_expr_selectContext:
-		selectClause := rightNode.Select_with_parens().Select_no_parens().Select_clause().(*parser.Select_clauseContext)
+		selectClause := rightNode.Select_with_parens().Select_no_parens()
 		subqueryScope, ok := scope.FindChildrenByNode(selectClause)
 		if !ok {
 			tctx.ErrOnToken(selectClause.GetStart(), "cannot found scope for this query")
 		}
 
-		subquery := parseSelectQuery(selectClause, subqueryScope, tctx)
+		subquery := parseSelectQuery(selectClause.(*parser.Select_no_parensContext), subqueryScope, tctx)
 
 		return &ir.InExpr{
 			Left: left,
@@ -553,31 +553,30 @@ func parseCollate(ctx *parser.A_expr_collateContext, scope *transformer.Scope, t
 
 func parseTypecast(ctx *parser.A_expr_typecastContext, scope *transformer.Scope, tctx *transformer.Context) ir.Expr {
 	cCtx := ctx.C_expr()
+	return parseCExpr(cCtx, scope, tctx)
+}
 
-	cExpr, ok := cCtx.(*parser.C_expr_exprContext)
+func parseCExpr(ctx parser.IC_exprContext, scope *transformer.Scope, tctx *transformer.Context) ir.Expr {
+	cExpr, ok := ctx.(*parser.C_expr_exprContext)
 	if ok {
-		return parseCExpr(cExpr, scope, tctx)
+		switch {
+		case cExpr.A_expr() != nil:
+			return parseExpr(cExpr.A_expr().(*parser.A_exprContext), scope, tctx)
+		case cExpr.Columnref() != nil:
+			return parseColumnRef(cExpr.Columnref().(*parser.ColumnrefContext), scope, tctx)
+		default:
+			return &ir.LiteralExpr{Value: ctx.GetText()}
+		}
 	}
 
-	dsqlExpr, ok := cCtx.(*parser.C_expr_dsqlparamContext)
+	dsqlExpr, ok := ctx.(*parser.C_expr_dsqlparamContext)
 	if ok {
 		return parseDsql(dsqlExpr.Dsql_param().(*parser.Dsql_paramContext), scope, tctx)
 	}
 
-	tctx.ErrOnToken(ctx.GetStart(), "unknown c expression type %T", cCtx)
+	tctx.ErrOnToken(ctx.GetStart(), "unknown c expression type %T", ctx)
 
 	return nil
-}
-
-func parseCExpr(ctx *parser.C_expr_exprContext, scope *transformer.Scope, tctx *transformer.Context) ir.Expr {
-	switch {
-	case ctx.A_expr() != nil:
-		return parseExpr(ctx.A_expr().(*parser.A_exprContext), scope, tctx)
-	case ctx.Columnref() != nil:
-		return parseColumnRef(ctx.Columnref().(*parser.ColumnrefContext), scope, tctx)
-	default:
-		return &ir.LiteralExpr{Value: ctx.GetText()}
-	}
 }
 
 func parseColumnRef(ctx *parser.ColumnrefContext, scope *transformer.Scope, tctx *transformer.Context) ir.Expr {
