@@ -1,6 +1,6 @@
 --> GetList many
 SELECT b.* FROM "public"."basic_types" b
-WHERE b.field_integer IS NULL
+WHERE b.field_integer = 10
 ORDER BY b.id DESC
 OFFSET $data.offset
 LIMIT ALL;

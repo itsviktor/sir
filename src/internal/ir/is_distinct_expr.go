@@ -6,6 +6,7 @@ type IsDistinctExpr struct {
 	Left  Expr
 	Right Expr
 	Not   bool
+	Pos   utils.Position
 }
 
 func (IsDistinctExpr) expr() {}
@@ -22,4 +23,8 @@ func (e *IsDistinctExpr) Print(indent int) {
 
 	utils.IndentPrintf(indent+2, " right:\n")
 	e.Right.Print(indent + 4)
+}
+
+func (e *IsDistinctExpr) GetPos() utils.Position {
+	return e.Pos
 }

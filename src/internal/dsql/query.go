@@ -25,6 +25,6 @@ type Query struct {
 	SQL       string // SQL is the raw query text with the header line removed.
 	Name      string // Name is the PascalCase query name parsed from the header comment.
 	Kind      Kind   // Kind is the return kind parsed from the header comment (one, many, count, exec).
-	File      string // File is the path to the query's file.
+	Filepath  string // Filepath is the path to the query's file.
 	StartLine int    // StartLine is the line number where the query starts.
 }

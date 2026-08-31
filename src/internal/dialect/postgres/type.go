@@ -7,82 +7,163 @@ import (
 	"github.com/itsviktor/sir/src/internal/schema"
 )
 
-var prefixes = map[string]string{
-	// Integer
-	"smallint": "int16",
-	"integer":  "int32",
-	"bigint":   "int64",
-
-	// Floating point
-	"real":             "float32",
-	"double precision": "float64",
-
-	// Exact numeric
-	"numeric": "decimal.Decimal",
-	"decimal": "decimal.Decimal",
-
-	// String
-	"character varying": "string",
-	"varchar":           "string",
-	"character":         "string",
-	"char":              "string",
-	"text":              "string",
-
-	// Boolean
-	"boolean": "bool",
-
-	// UUID
-	"uuid": "uuid.UUID",
-
-	// Network
-	"inet":     "netip.Prefix",
-	"cidr":     "netip.Prefix",
-	"macaddr":  "net.HardwareAddr",
-	"macaddr8": "net.HardwareAddr",
-
-	// Date / time
-	"date":                        "time.Time",
-	"timestamp without time zone": "time.Time",
-	"timestamp with time zone":    "time.Time",
-	"time without time zone":      "time.Time",
-	"time with time zone":         "time.Time",
-	"interval":                    "pgtype.Interval",
-
-	// Binary
-	"bytea": "[]byte",
-
-	// JSON
-	"json":  "[]byte",
-	"jsonb": "[]byte",
+type typeInfo struct {
+	goType          string
+	requiredImports []string
+	kind            schema.TypeKind
 }
 
-var imports = map[string]string{
-	"numeric": "github.com/shopspring/decimal",
-	"decimal": "github.com/shopspring/decimal",
+var typesInfo = map[string]typeInfo{
+	// Integer
+	"smallint": {
+		goType: "int16",
+		kind:   schema.Integer,
+	},
+	"integer": {
+		goType: "int32",
+		kind:   schema.Integer,
+	},
+	"bigint": {
+		goType: "int64",
+		kind:   schema.Integer,
+	},
 
-	"uuid": "github.com/google/uuid",
+	// Floating point
+	"real": {
+		goType: "float32",
+		kind:   schema.Float,
+	},
+	"double precision": {
+		goType: "float64",
+		kind:   schema.Float,
+	},
 
-	"inet":     "net/netip",
-	"cidr":     "net/netip",
-	"macaddr":  "net",
-	"macaddr8": "net",
+	// Exact numeric
+	"numeric": {
+		goType:          "decimal.Decimal",
+		requiredImports: []string{"github.com/shopspring/decimal"},
+		kind:            schema.Numeric,
+	},
+	"decimal": {
+		goType:          "decimal.Decimal",
+		requiredImports: []string{"github.com/shopspring/decimal"},
+		kind:            schema.Numeric,
+	},
 
-	"date":                        "time",
-	"timestamp without time zone": "time",
-	"timestamp with time zone":    "time",
-	"time without time zone":      "time",
-	"time with time zone":         "time",
-	"interval":                    "github.com/jackc/pgx/v5/pgtype",
+	// String
+	"character varying": {
+		goType: "string",
+		kind:   schema.String,
+	},
+	"varchar": {
+		goType: "string",
+		kind:   schema.String,
+	},
+	"character": {
+		goType: "string",
+		kind:   schema.String,
+	},
+	"char": {
+		goType: "string",
+		kind:   schema.String,
+	},
+	"text": {
+		goType: "string",
+		kind:   schema.String,
+	},
+
+	// Boolean
+	"boolean": {
+		goType: "bool",
+		kind:   schema.Boolean,
+	},
+
+	// UUID
+	"uuid": {
+		goType:          "uuid.UUID",
+		requiredImports: []string{"github.com/google/uuid"},
+		kind:            schema.String,
+	},
+
+	// Network
+	"inet": {
+		goType:          "netip.Prefix",
+		requiredImports: []string{"net/netip"},
+		kind:            schema.String,
+	},
+	"cidr": {
+		goType:          "netip.Prefix",
+		requiredImports: []string{"net/netip"},
+		kind:            schema.String,
+	},
+	"macaddr": {
+		goType:          "net.HardwareAddr",
+		requiredImports: []string{"net"},
+		kind:            schema.String,
+	},
+	"macaddr8": {
+		goType:          "net.HardwareAddr",
+		requiredImports: []string{"net"},
+		kind:            schema.String,
+	},
+
+	// Date / time
+	"date": {
+		goType:          "time.Time",
+		requiredImports: []string{"time"},
+		kind:            schema.String,
+	},
+	"timestamp without time zone": {
+		goType:          "time.Time",
+		requiredImports: []string{"time"},
+		kind:            schema.String,
+	},
+	"timestamp with time zone": {
+		goType:          "time.Time",
+		requiredImports: []string{"time"},
+		kind:            schema.String,
+	},
+	"time without time zone": {
+		goType:          "time.Time",
+		requiredImports: []string{"time"},
+		kind:            schema.String,
+	},
+	"time with time zone": {
+		goType:          "time.Time",
+		requiredImports: []string{"time"},
+		kind:            schema.String,
+	},
+	"interval": {
+		goType:          "pgtype.Interval",
+		requiredImports: []string{"github.com/jackc/pgx/v5/pgtype"},
+		kind:            schema.String,
+	},
+
+	// Binary
+	"bytea": {
+		goType: "[]byte",
+		kind:   schema.String,
+	},
+
+	// JSON
+	"json": {
+		goType: "[]byte",
+		kind:   schema.String,
+	},
+	"jsonb": {
+		goType: "[]byte",
+		kind:   schema.String,
+	},
 }
 
 // parseType parses type definition from postgres type name.
 func parseType(dbType string, isNullable bool) (schema.ColumnType, error) {
-	for prefix, goType := range prefixes {
+	for prefix, info := range typesInfo {
 		if !strings.HasPrefix(dbType, prefix) {
 			continue
 		}
 
-		isArrayByItself := strings.HasPrefix(goType, "[]")
+		isArrayByItself := strings.HasPrefix(info.goType, "[]")
 		isArrayType := strings.HasSuffix(dbType, "[]")
 
 		goTypeBuilder := strings.Builder{}
@@ -95,20 +176,15 @@ func parseType(dbType string, isNullable bool) (schema.ColumnType, error) {
 			if !isArrayByItself {
 				goTypeBuilder.WriteString("*")
 			}
-			goTypeBuilder.WriteString(goType)
+			goTypeBuilder.WriteString(info.goType)
 		} else {
 			if isNullable && !isArrayByItself {
 				goTypeBuilder.WriteString("*")
 			}
-			goTypeBuilder.WriteString(goType)
+			goTypeBuilder.WriteString(info.goType)
 		}
 
-		var requiredImports []string
-		if i, ok := imports[dbType]; ok {
-			requiredImports = append(requiredImports, i)
-		}
-
-		return schema.NewDefaultType(dbType, goTypeBuilder.String(), requiredImports), nil
+		return schema.NewDefaultType(dbType, goTypeBuilder.String(), info.kind, info.requiredImports), nil
 	}
 
 	t, ok := schema.GetRegisteredType(dbType)

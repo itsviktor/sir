@@ -30,17 +30,19 @@ type Column struct {
 type ColumnType interface {
 	DbName() string
 	GoName() string
+	Kind() TypeKind
 	Imports() []string
 }
 
 type DefaultType struct {
 	dbName  string
 	goName  string
+	kind    TypeKind
 	imports []string
 }
 
-func NewDefaultType(dbName, goName string, imports []string) ColumnType {
-	return &DefaultType{dbName: dbName, goName: goName, imports: imports}
+func NewDefaultType(dbName, goName string, kind TypeKind, imports []string) ColumnType {
+	return &DefaultType{dbName: dbName, goName: goName, kind: kind, imports: imports}
 }
 
 func (t DefaultType) DbName() string {
@@ -53,4 +55,8 @@ func (t DefaultType) GoName() string {
 
 func (t DefaultType) Imports() []string {
 	return t.imports
+}
+
+func (t DefaultType) Kind() TypeKind {
+	return t.kind
 }

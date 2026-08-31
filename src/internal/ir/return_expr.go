@@ -8,6 +8,7 @@ type ReturnExpr interface {
 }
 
 type AllReturnExpr struct {
+	Pos utils.Position
 }
 
 func (AllReturnExpr) expr() {}
@@ -16,4 +17,8 @@ func (AllReturnExpr) returnExpr() {}
 
 func (AllReturnExpr) Print(indent int) {
 	utils.IndentPrintf(indent, "- all fields\n")
+}
+
+func (e *AllReturnExpr) GetPos() utils.Position {
+	return e.Pos
 }

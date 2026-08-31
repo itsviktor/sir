@@ -37,6 +37,8 @@ type OrderByExpr struct {
 	Order   OrderByOrder
 	UsingOp *Op
 	Nulls   *OrderByNulls
+
+	Pos utils.Position
 }
 
 func (e OrderByExpr) Print(indent int) {

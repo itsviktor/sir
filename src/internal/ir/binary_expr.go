@@ -8,6 +8,7 @@ type BinaryExpr struct {
 	Right Expr
 	Op    Op
 	Left  Expr
+	Pos   utils.Position
 }
 
 func (BinaryExpr) expr() {}
@@ -22,4 +23,8 @@ func (e *BinaryExpr) Print(indent int) {
 	e.Right.Print(indent + 4)
 
 	utils.IndentPrintf(indent+2, " op: %s\n", e.Op.String())
+}
+
+func (e *BinaryExpr) GetPos() utils.Position {
+	return e.Pos
 }

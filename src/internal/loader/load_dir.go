@@ -94,7 +94,7 @@ func parseQueries(filepath string, content string) []dsql.Query {
 			SQL:       strings.TrimSpace(queryBuilder.String()),
 			Name:      queryName,
 			Kind:      queryKind,
-			File:      filepath,
+			Filepath:  filepath,
 			StartLine: queryStartAt.line,
 		})
 

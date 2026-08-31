@@ -6,20 +6,18 @@ import (
 	"strings"
 )
 
-// FilePosition is a position of the error inside the file.
-type FilePosition struct {
-	Filepath string // Filepath is the relative or absolute path to the file where the error exists.
-	Line     int
-	Column   int
+type Position struct {
+	Line   int
+	Column int
 }
 
 // TraceErr prints formatted error message and points it's origin in the file, then calls os.Exit(1).
-func TraceErr(pos FilePosition, format string, v ...any) {
+func TraceErr(filepath string, pos Position, format string, v ...any) {
 	msg := fmt.Sprintf(format, v...)
 
-	data, err := os.ReadFile(pos.Filepath)
+	data, err := os.ReadFile(filepath)
 	if err != nil {
-		fmt.Printf("%s:%d:%d: %s\n", pos.Filepath, pos.Line, pos.Column+1, msg)
+		fmt.Printf("%s:%d:%d: %s\n", filepath, pos.Line, pos.Column+1, msg)
 		return
 	}
 
@@ -31,7 +29,7 @@ func TraceErr(pos FilePosition, format string, v ...any) {
 	end := min(len(lines), pos.Line+contextLines)
 
 	fmt.Printf("%s:%d:%d: %s\n\n",
-		pos.Filepath,
+		filepath,
 		pos.Line,
 		pos.Column+1,
 		msg,

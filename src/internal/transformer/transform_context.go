@@ -17,15 +17,14 @@ func NewTransformContext(filepath string, startLine int) *Context {
 	}
 }
 
-func (ctx *Context) TokenToPosition(token antlr.Token) utils.FilePosition {
-	return utils.FilePosition{
-		Filepath: ctx.Filepath,
-		Line:     token.GetLine() + ctx.StartLine - 1,
-		Column:   token.GetColumn(),
+func (ctx *Context) TokenToPosition(token antlr.Token) utils.Position {
+	return utils.Position{
+		Line:   token.GetLine() + ctx.StartLine - 1,
+		Column: token.GetColumn(),
 	}
 
 }
 
 func (ctx *Context) ErrOnToken(token antlr.Token, format string, v ...any) {
-	utils.TraceErr(ctx.TokenToPosition(token), format, v...)
+	utils.TraceErr(ctx.Filepath, ctx.TokenToPosition(token), format, v...)
 }

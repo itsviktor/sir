@@ -47,6 +47,7 @@ func parseLessLess(
 			Left:  left,
 			Right: right,
 			Op:    ir.NewOp(ir.Or, "OR"),
+			Pos:   tctx.TokenToPosition(rightExpr.GetStart()),
 		}
 	}
 
@@ -71,6 +72,7 @@ func parseOr(
 			Left:  left,
 			Right: right,
 			Op:    ir.NewOp(ir.And, "AND"),
+			Pos:   tctx.TokenToPosition(rightExpr.GetStart()),
 		}
 	}
 
@@ -94,6 +96,7 @@ func parseAnd(
 		Right: right,
 		Left:  left,
 		Op:    ir.NewOp(ir.And, "AND"),
+		Pos:   tctx.TokenToPosition(aExpr.GetStart()),
 	}
 }
 
@@ -130,6 +133,7 @@ func parseBetween(
 		From: from,
 		To:   to,
 		Not:  isNot,
+		Pos:  tctx.TokenToPosition(aExpr.GetStart()),
 	}
 }
 
@@ -171,6 +175,7 @@ func parseIn(
 			Right: ir.InList{
 				Items: exprs,
 			},
+			Pos: tctx.TokenToPosition(aExpr.GetStart()),
 		}
 	case *parser.In_expr_selectContext:
 		selectClause := rightNode.Select_with_parens().Select_no_parens()
@@ -187,6 +192,7 @@ func parseIn(
 			Right: ir.InSubquery{
 				Query: subquery,
 			},
+			Pos: tctx.TokenToPosition(aExpr.GetStart()),
 		}
 	case *parser.In_expr_dsqlContext:
 		expr := parseDsql(rightNode.Dsql_param().(*parser.Dsql_paramContext), scope, tctx)
@@ -197,6 +203,7 @@ func parseIn(
 			Right: ir.InDsql{
 				Expr: expr,
 			},
+			Pos: tctx.TokenToPosition(aExpr.GetStart()),
 		}
 	}
 
@@ -221,6 +228,7 @@ func parseUnaryNot(
 	return &ir.UnaryExpr{
 		Expr: expr,
 		Op:   ir.NewOp(ir.Not, "NOT"),
+		Pos:  tctx.TokenToPosition(aExpr.GetStart()),
 	}
 }
 
@@ -240,12 +248,14 @@ func parseIsNull(
 			Expr:      left,
 			Predicate: ir.IsNull,
 			Not:       false,
+			Pos:       tctx.TokenToPosition(aExpr.GetStart()),
 		}
 	} else if aExpr.NOTNULL() != nil {
 		return &ir.IsExpr{
 			Expr:      left,
 			Predicate: ir.IsNull,
 			Not:       true,
+			Pos:       tctx.TokenToPosition(aExpr.GetStart()),
 		}
 	}
 
@@ -280,6 +290,7 @@ func parseIsNot(
 			Left:  expr,
 			Right: right,
 			Not:   isNot,
+			Pos:   tctx.TokenToPosition(aExpr.GetStart()),
 		}
 	}
 
@@ -305,6 +316,7 @@ func parseIsNot(
 		Expr:      expr,
 		Predicate: predicate,
 		Not:       isNot,
+		Pos:       tctx.TokenToPosition(aExpr.GetStart()),
 	}
 }
 
@@ -336,6 +348,7 @@ func parseCompare(
 		Left:  left,
 		Right: right,
 		Op:    ir.NewOp(opType, opText),
+		Pos:   tctx.TokenToPosition(aExpr.GetStart()),
 	}
 }
 
@@ -372,6 +385,7 @@ func parseLike(aExpr *parser.A_expr_likeContext, scope *transformer.Scope, tctx 
 		Left:  left,
 		Right: right,
 		Op:    ir.NewOp(op, opText),
+		Pos:   tctx.TokenToPosition(aExpr.GetStart()),
 	}
 }
 
@@ -404,6 +418,7 @@ func parseQualOp(aExpr *parser.A_expr_qual_opContext, scope *transformer.Scope, 
 			Left:  left,
 			Right: right,
 			Op:    ir.NewOp(op, opText),
+			Pos:   tctx.TokenToPosition(aExpr.GetStart()),
 		}
 	}
 
@@ -432,6 +447,7 @@ func parseUnaryQualOp(aExpr *parser.A_expr_unary_qualopContext, scope *transform
 	return &ir.UnaryExpr{
 		Expr: expr,
 		Op:   ir.NewOp(op, opNode.GetText()),
+		Pos:  tctx.TokenToPosition(aExpr.GetStart()),
 	}
 }
 
@@ -464,6 +480,7 @@ func parseAdd(aExpr *parser.A_expr_addContext, scope *transformer.Scope, tctx *t
 			Left:  left,
 			Right: right,
 			Op:    ir.NewOp(op, opText),
+			Pos:   tctx.TokenToPosition(aExpr.GetStart()),
 		}
 	}
 
@@ -499,6 +516,7 @@ func parseMul(aExpr *parser.A_expr_mulContext, scope *transformer.Scope, tctx *t
 			Left:  left,
 			Right: right,
 			Op:    ir.NewOp(op, opText),
+			Pos:   tctx.TokenToPosition(rightExpr.GetStart()),
 		}
 	}
 
@@ -522,6 +540,7 @@ func parseCaret(aExpr *parser.A_expr_caretContext, scope *transformer.Scope, tct
 		Left:  left,
 		Right: right,
 		Op:    ir.NewOp(ir.Caret, "^"),
+		Pos:   tctx.TokenToPosition(aExpr.GetStart()),
 	}
 }
 
@@ -532,11 +551,13 @@ func parseUnarySign(aExpr *parser.A_expr_unary_signContext, scope *transformer.S
 		return &ir.UnaryExpr{
 			Expr: right,
 			Op:   ir.NewOp(ir.UnaryMinus, "-"),
+			Pos:  tctx.TokenToPosition(aExpr.GetStart()),
 		}
 	} else if aExpr.PLUS() != nil {
 		return &ir.UnaryExpr{
 			Expr: right,
 			Op:   ir.NewOp(ir.UnaryPlus, "+"),
+			Pos:  tctx.TokenToPosition(aExpr.GetStart()),
 		}
 	}
 
@@ -565,7 +586,7 @@ func parseCExpr(ctx parser.IC_exprContext, scope *transformer.Scope, tctx *trans
 		case cExpr.Columnref() != nil:
 			return parseColumnRef(cExpr.Columnref().(*parser.ColumnrefContext), scope, tctx)
 		default:
-			return &ir.LiteralExpr{Value: ctx.GetText()}
+			return &ir.LiteralExpr{Value: ctx.GetText(), Pos: tctx.TokenToPosition(ctx.GetStart())}
 		}
 	}
 
@@ -615,7 +636,7 @@ func resolveUnqualifiedColumn(ctx *parser.ColumnrefContext, name string, scope *
 }
 
 func resolveQualifiedColumn(ctx *parser.ColumnrefContext, relationName, name string, scope *transformer.Scope, tctx *transformer.Context) ir.Expr {
-	relation, table, ok := scope.FindRelation(relationName)
+	relation, ok := scope.FindRelation(relationName)
 	if !ok {
 		tctx.ErrOnToken(ctx.GetStart(), "relation %q does not found in the current scope, available: %s", relationName, strings.Join(scope.RelationNames(), ", "))
 	}
@@ -623,14 +644,15 @@ func resolveQualifiedColumn(ctx *parser.ColumnrefContext, relationName, name str
 	if name == "*" {
 		return &ir.WildcardColumnExpr{
 			Relation: relation,
+			Pos:      tctx.TokenToPosition(ctx.GetStart()),
 		}
 	}
 
-	if !table.HasColumn(name) {
-		tctx.ErrOnToken(ctx.GetStart(), "relation %q has no column %q, available: %s", relation.Name, name, strings.Join(table.ColumnNames(), ", "))
+	if !relation.HasColumn(name) {
+		tctx.ErrOnToken(ctx.GetStart(), "relation %q has no column %q, available: %s", relation.Name, name, strings.Join(relation.ColumnNames(), ", "))
 	}
 
-	return &ir.ColumnExpr{Name: name, Relation: relation}
+	return &ir.ColumnExpr{Name: name, Relation: relation, Pos: tctx.TokenToPosition(ctx.GetStart())}
 }
 
 func parseDsql(dsqlExpr *parser.Dsql_paramContext, scope *transformer.Scope, tctx *transformer.Context) ir.Expr {
@@ -646,5 +668,6 @@ func parseDsql(dsqlExpr *parser.Dsql_paramContext, scope *transformer.Scope, tct
 	return &ir.DsqlExpr{
 		Name:  paramName,
 		Field: field,
+		Pos:   tctx.TokenToPosition(dsqlExpr.GetStart()),
 	}
 }

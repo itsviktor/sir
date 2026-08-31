@@ -39,6 +39,7 @@ type IsExpr struct {
 	Expr      Expr
 	Predicate IsPredicate
 	Not       bool
+	Pos       utils.Position
 }
 
 func (IsExpr) expr() {}
@@ -53,4 +54,8 @@ func (e *IsExpr) Print(indent int) {
 	utils.IndentPrintf(indent+2, " expr:\n")
 
 	e.Expr.Print(indent + 4)
+}
+
+func (e *IsExpr) GetPos() utils.Position {
+	return e.Pos
 }

@@ -1,5 +1,7 @@
 package postgres
 
+import "github.com/itsviktor/sir/src/internal/schema"
+
 type pgEnumType struct {
 	Name   string
 	Values []string
@@ -15,4 +17,8 @@ func (t pgEnumType) GoName() string {
 
 func (t pgEnumType) Imports() []string {
 	return []string{}
+}
+
+func (t pgEnumType) Kind() schema.TypeKind {
+	return schema.Enum
 }

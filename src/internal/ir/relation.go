@@ -3,6 +3,8 @@ package ir
 import (
 	"fmt"
 	"strings"
+
+	"github.com/itsviktor/sir/src/internal/schema"
 )
 
 type Relation interface {
@@ -13,9 +15,35 @@ type Relation interface {
 type TableRelation struct {
 	Name  string
 	Alias string
+	table *schema.Table
 }
 
 func (TableRelation) relation() {}
+
+func (r *TableRelation) LinkTable(table *schema.Table) {
+	r.table = table
+}
+
+func (r *TableRelation) HasColumn(name string) bool {
+	if r.table == nil {
+		panic("cannot check column name: relation has no linked table")
+	}
+
+	return r.table.HasColumn(name)
+}
+
+func (r *TableRelation) GetColumn(name string) (schema.Column, bool) {
+	column, ok := r.table.Columns[name]
+	return column, ok
+}
+
+func (r *TableRelation) ColumnNames() []string {
+	if r.table == nil {
+		panic("cannot get column names: relation has no linked table")
+	}
+
+	return r.table.ColumnNames()
+}
 
 func (r *TableRelation) Print(indent int) {
 	i := strings.Repeat(" ", indent)

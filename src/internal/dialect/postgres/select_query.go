@@ -66,7 +66,9 @@ func parseReturns(selectCtx *parser.Select_clauseContext, scope *transformer.Sco
 	for _, child := range targetListCtx.GetChildren() {
 		_, ok := child.(*parser.Target_starContext)
 		if ok {
-			targets = append(targets, &ir.AllReturnExpr{})
+			targets = append(targets, &ir.AllReturnExpr{
+				Pos: tctx.TokenToPosition(selectCtx.GetStart()),
+			})
 			continue
 		}
 
@@ -129,7 +131,9 @@ func parseLimit(limitCtx *parser.Select_limitContext, scope *transformer.Scope, 
 		}
 
 		if limitClause.Select_limit_value().ALL() != nil {
-			return &ir.LimitAllExpr{}
+			return &ir.LimitAllExpr{
+				Pos: tctx.TokenToPosition(limitClause.GetStart()),
+			}
 		}
 
 	}
@@ -151,7 +155,9 @@ func parseOrderBy(sortCtx *parser.Sort_clause_Context, scope *transformer.Scope,
 
 	var items []*ir.OrderByExpr
 	for _, child := range sortList.AllSortby() {
-		orderBy := &ir.OrderByExpr{}
+		orderBy := &ir.OrderByExpr{
+			Pos: tctx.TokenToPosition(child.GetStart()),
+		}
 
 		aExpr := child.A_expr()
 		if aExpr == nil {

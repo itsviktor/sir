@@ -1,8 +1,10 @@
 package main
 
 import (
+	"errors"
 	"log"
 
+	"github.com/itsviktor/sir/src/internal/analyzer"
 	"github.com/itsviktor/sir/src/internal/database"
 	"github.com/itsviktor/sir/src/internal/dialect/postgres"
 	"github.com/itsviktor/sir/src/internal/loader"
@@ -61,19 +63,31 @@ func main() {
 		log.Fatalf("loading query files: %v", err)
 	}
 
-	// Creating IR transformer.
+	// Creating IR transformer and analyzer.
 	var t transformer.Transformer
+	var a analyzer.Analyzer
 	switch dialect {
 	case database.Postgres:
 		t = &postgres.PostgresTransformer{}
+		a = &postgres.PostgresAnalyzer{}
 	default:
 		log.Fatalf("unsupported database dialect: %s", dialect)
 	}
 
-	// Transforming queries to internal representation.
+	// Transforming queries to internal representation, then typechecking them and generate a code.
 	for _, domain := range domains {
 		for _, query := range domain.Queries {
-			t.Transform(query, domain.Name, tables)
+			queryInternalRepresentation := t.Transform(query, domain.Name, tables)
+
+			err := a.TypeCheck(queryInternalRepresentation)
+
+			if err != nil {
+				if typeErr, ok := errors.AsType[*analyzer.AnalyzerError](err); ok {
+					utils.TraceErr(query.Filepath, typeErr.Pos, "%s", typeErr.Error())
+				} else {
+					log.Fatalf("typecheck error: %s", err.Error())
+				}
+			}
 		}
 	}
 }

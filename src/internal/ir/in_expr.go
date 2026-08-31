@@ -6,6 +6,7 @@ type InExpr struct {
 	Left  Expr
 	Not   bool
 	Right InRight
+	Pos   utils.Position
 }
 
 func (InExpr) expr() {}
@@ -29,6 +30,10 @@ func (e *InExpr) Print(indent int) {
 		utils.IndentPrintf(indent+2, " in dsql:\n")
 		r.Expr.Print(indent + 4)
 	}
+}
+
+func (e *InExpr) GetPos() utils.Position {
+	return e.Pos
 }
 
 type InRight interface {

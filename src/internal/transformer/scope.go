@@ -8,11 +8,6 @@ import (
 	"github.com/itsviktor/sir/src/internal/schema"
 )
 
-type relationInfo struct {
-	relation *ir.TableRelation
-	table    *schema.Table
-}
-
 // Scope stores relations and aliases in the current query context.
 // Every scope is tied to an ANTLR node, usually a SELECT clause context node.
 type Scope struct {
@@ -21,8 +16,8 @@ type Scope struct {
 
 	node antlr.Tree // node is the SELECT clause context node that created this scope.
 
-	relations map[string]*relationInfo // relations maps relation names to their information.
-	aliases   map[string]*relationInfo // aliases maps relation aliases to their information.
+	relations map[string]*ir.TableRelation // relations maps relation names to their information.
+	aliases   map[string]*ir.TableRelation // aliases maps relation aliases to their information.
 }
 
 // NewScope creates new query Scope.
@@ -31,8 +26,8 @@ func NewScope(node antlr.Tree) *Scope {
 		parent:         nil,
 		nodeToChildren: make(map[antlr.Tree]*Scope),
 		node:           node,
-		relations:      make(map[string]*relationInfo),
-		aliases:        make(map[string]*relationInfo),
+		relations:      make(map[string]*ir.TableRelation),
+		aliases:        make(map[string]*ir.TableRelation),
 	}
 }
 
@@ -72,23 +67,21 @@ func (s *Scope) RelationNames() []string {
 	return names
 }
 
-// AddRelation adds new relation to the scope.
+// AddRelation adds a new relation to the scope.
+// It also modifies the relation by linking it to the given table.
 func (s *Scope) AddRelation(relation *ir.TableRelation, table *schema.Table) error {
-	info := &relationInfo{
-		relation,
-		table,
-	}
-
 	if relation.Alias != "" {
-		_, ok := s.aliases[relation.Name]
+		_, ok := s.aliases[relation.Alias]
 		if ok {
 			return fmt.Errorf("duplicate alias %q", relation.Alias)
 		}
 
-		s.aliases[relation.Alias] = info
+		s.aliases[relation.Alias] = relation
 	}
 
-	s.relations[relation.Name] = info
+	relation.LinkTable(table)
+
+	s.relations[relation.Name] = relation
 
 	return nil
 }
@@ -96,23 +89,23 @@ func (s *Scope) AddRelation(relation *ir.TableRelation, table *schema.Table) err
 // FindRelation tries to find relation by its name or alias.
 // Propagates the search to the parent scope if it exists.
 //
-// Returns the relation, its schema and a success flag.
-func (s *Scope) FindRelation(name string) (*ir.TableRelation, *schema.Table, bool) {
+// Returns the relation and a success flag.
+func (s *Scope) FindRelation(name string) (*ir.TableRelation, bool) {
 	r, ok := s.relations[name]
 	if ok {
-		return r.relation, r.table, true
+		return r, true
 	}
 
 	ar, ok := s.aliases[name]
 	if ok {
-		return ar.relation, ar.table, true
+		return ar, true
 	}
 
 	if s.parent != nil {
 		return s.parent.FindRelation(name)
 	}
 
-	return nil, nil, false
+	return nil, false
 }
 
 // FindRelationCandidatesNames returns the names of relations that contain the
@@ -123,8 +116,8 @@ func (s *Scope) FindRelation(name string) (*ir.TableRelation, *schema.Table, boo
 func (s *Scope) FindRelationCandidatesNames(columnName string) []string {
 	var candidates []string
 
-	for name, data := range s.relations {
-		if data.table.HasColumn(columnName) {
+	for name, relation := range s.relations {
+		if relation.HasColumn(columnName) {
 			candidates = append(candidates, name)
 		}
 	}
