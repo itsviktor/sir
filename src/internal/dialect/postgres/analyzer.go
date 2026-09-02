@@ -3,6 +3,7 @@ package postgres
 import (
 	"fmt"
 	"strconv"
+	"strings"
 
 	"github.com/itsviktor/sir/src/internal/analyzer"
 	"github.com/itsviktor/sir/src/internal/ir"
@@ -80,7 +81,14 @@ func getColumnType(expr *ir.ColumnExpr) (schema.TypeKind, error) {
 }
 
 func getLiteralType(expr *ir.LiteralExpr) schema.TypeKind {
-	_, err := strconv.ParseFloat(expr.Value, 64)
+	v := strings.ToLower(expr.Value)
+
+	_, err := strconv.Atoi(v)
+	if err == nil {
+		return schema.Integer
+	}
+
+	_, err = strconv.ParseFloat(v, 64)
 	if err == nil {
 		return schema.Numeric
 	}
