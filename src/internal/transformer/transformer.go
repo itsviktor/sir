@@ -8,5 +8,5 @@ import (
 
 type Transformer interface {
 	// Transform transforms provided query to the Internal Representation.
-	Transform(query dsql.Query, domainName string, tables map[string]*schema.Table) ir.Query
+	Transform(query dsql.Query, domainName string, tables map[string]*schema.Table) (*Scope, ir.Query)
 }

@@ -75,6 +75,13 @@ func parseReturns(selectCtx *parser.Select_clauseContext, scope *transformer.Sco
 		targetLabel, ok := child.(*parser.Target_labelContext)
 		if ok {
 			expr := parseExpr(targetLabel.A_expr().(*parser.A_exprContext), scope, tctx)
+
+			switch expr.(type) {
+			case *ir.AllReturnExpr, *ir.WildcardColumnExpr, *ir.ColumnExpr:
+			default:
+				tctx.ErrOnToken(selectCtx.GetStart(), "unsupported SELECT expression type: %T", expr)
+			}
+
 			targets = append(targets, expr.(ir.ReturnExpr))
 
 			continue

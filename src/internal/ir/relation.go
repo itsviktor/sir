@@ -10,6 +10,7 @@ import (
 type Relation interface {
 	relation()
 	Print(indent int)
+	GetName() string
 }
 
 type TableRelation struct {
@@ -53,6 +54,10 @@ func (r *TableRelation) Print(indent int) {
 		fmt.Printf("alias=%s", r.Alias)
 	}
 	fmt.Printf("\n")
+}
+
+func (r *TableRelation) GetName() string {
+	return r.Name
 }
 
 type SubqueryRelation struct {
@@ -109,4 +114,8 @@ func (r *JoinRelation) Print(indent int) {
 		fmt.Printf("%s   on:\n", i)
 		r.On.Print(indent + 4)
 	}
+}
+
+func (r *JoinRelation) GetName() string {
+	return r.Left.GetName()
 }

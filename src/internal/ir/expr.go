@@ -66,6 +66,10 @@ func (e *ColumnExpr) GetPos() utils.Position {
 	return e.Pos
 }
 
+func (e *ColumnExpr) String() string {
+	return e.Relation.Name + "." + e.Name
+}
+
 type WildcardColumnExpr struct {
 	Relation Relation
 	Pos      utils.Position
@@ -83,4 +87,8 @@ func (e *WildcardColumnExpr) Print(indent int) {
 
 func (e *WildcardColumnExpr) GetPos() utils.Position {
 	return e.Pos
+}
+
+func (e *WildcardColumnExpr) String() string {
+	return e.Relation.GetName() + ".*"
 }

@@ -5,6 +5,7 @@ import (
 	"log"
 
 	"github.com/itsviktor/sir/src/internal/analyzer"
+	"github.com/itsviktor/sir/src/internal/codegen"
 	"github.com/itsviktor/sir/src/internal/database"
 	"github.com/itsviktor/sir/src/internal/dialect/postgres"
 	"github.com/itsviktor/sir/src/internal/loader"
@@ -63,31 +64,42 @@ func main() {
 		log.Fatalf("loading query files: %v", err)
 	}
 
-	// Creating IR transformer and analyzer.
+	// Creating IR transformer, analyzer and code generator.
 	var t transformer.Transformer
 	var a analyzer.Analyzer
+	var cg codegen.GoCodegen
 	switch dialect {
 	case database.Postgres:
 		t = &postgres.PostgresTransformer{}
 		a = &postgres.PostgresAnalyzer{}
+		cg = postgres.NewPostgresGoCodegen("out")
 	default:
 		log.Fatalf("unsupported database dialect: %s", dialect)
 	}
 
 	// Transforming queries to internal representation, then typechecking them and generate a code.
 	for _, domain := range domains {
+		d := cg.CreateDomain("out", domain.Name)
+
 		for _, query := range domain.Queries {
-			queryInternalRepresentation := t.Transform(query, domain.Name, tables)
+			queryScope, queryInternalRepresentation := t.Transform(query, domain.Name, tables)
 
-			err := a.TypeCheck(queryInternalRepresentation)
-
-			if err != nil {
+			if err := a.TypeCheck(queryInternalRepresentation); err != nil {
 				if typeErr, ok := errors.AsType[*analyzer.AnalyzerError](err); ok {
 					utils.TraceErr(query.Filepath, typeErr.Pos, "%s", typeErr.Error())
 				} else {
 					log.Fatalf("typecheck error: %s", err.Error())
 				}
 			}
+
+			err := d.AddQuery(queryInternalRepresentation, query.Name, queryScope)
+			if err != nil {
+				log.Fatalf("failed to generate query code: %v", err)
+			}
+		}
+
+		if err := d.Write(); err != nil {
+			log.Fatalf("failed to write domain code into the file: %v", err)
 		}
 	}
 }

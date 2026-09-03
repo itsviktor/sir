@@ -14,7 +14,7 @@ import (
 
 type PostgresTransformer struct{}
 
-func (t PostgresTransformer) Transform(q dsql.Query, domainName string, tables map[string]*schema.Table) ir.Query {
+func (t PostgresTransformer) Transform(q dsql.Query, domainName string, tables map[string]*schema.Table) (*transformer.Scope, ir.Query) {
 	utils.Debugf("transforming %s query:\n%s\n\n", domainName, q.SQL)
 	tctx := transformer.NewTransformContext(q.Filepath, q.StartLine)
 
@@ -89,5 +89,5 @@ func (t PostgresTransformer) Transform(q dsql.Query, domainName string, tables m
 
 	query := parseSelectQuery(selectCtx, rootScope, tctx)
 
-	return query
+	return rootScope, query
 }
