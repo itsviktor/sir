@@ -43,7 +43,7 @@ func parseLessLess(
 		}
 		right := parseOr(rightExpr.(*parser.A_expr_orContext), scope, tctx)
 
-		left = &ir.BinaryExpr{
+		left = &ir.LogicalExpr{
 			Left:  left,
 			Right: right,
 			Op:    ir.NewOp(ir.Or, "OR"),
@@ -68,7 +68,7 @@ func parseOr(
 		}
 		right := parseAnd(rightExpr.(*parser.A_expr_andContext), scope, tctx)
 
-		left = &ir.BinaryExpr{
+		left = &ir.LogicalExpr{
 			Left:  left,
 			Right: right,
 			Op:    ir.NewOp(ir.And, "AND"),

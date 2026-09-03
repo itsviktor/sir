@@ -5,19 +5,22 @@ import "fmt"
 type TypeKind int
 
 const (
-	Unknown TypeKind = iota
-	Integer
+	Integer TypeKind = iota
 	Float
 	Numeric
 	String
 	Boolean
 	Enum
+	Unknown
+	Variable
 )
 
 func TypeKindToString(tk TypeKind) string {
 	switch tk {
 	case Unknown:
 		return "Unknown"
+	case Variable:
+		return "Variable"
 	case Integer:
 		return "Integer"
 	case Float:
@@ -33,4 +36,8 @@ func TypeKindToString(tk TypeKind) string {
 	default:
 		return fmt.Sprintf("unknown type kind: %d", tk)
 	}
+}
+
+func IsNumber(tk TypeKind) bool {
+	return tk <= Numeric
 }
